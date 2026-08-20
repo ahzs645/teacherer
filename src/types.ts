@@ -44,6 +44,12 @@ export interface Student {
   pronouns: Pronouns
   /** category id -> chosen picks; absent or empty = category skipped */
   ratings: Record<string, PickCode[]>
+  /**
+   * Category ids in the order this student's sentences are stitched. Empty
+   * means "use the bank's own top-to-bottom order", which is the class default;
+   * anything listed here overrides it for this student only.
+   */
+  order: string[]
   /** free text appended verbatim (placeholders allowed) */
   note: string
 }

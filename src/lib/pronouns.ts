@@ -22,6 +22,7 @@ export function makeStudent(
     name,
     pronouns: { preset: key, ...PRONOUN_PRESETS[key] },
     ratings,
+    order: [],
     note: '',
   }
 }

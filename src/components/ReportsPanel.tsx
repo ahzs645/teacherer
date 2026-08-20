@@ -85,6 +85,7 @@ export default function ReportsPanel({ state, update, klass, updateClass }: Prop
             name: row.name,
             pronouns: { preset: 'they', subject: 'they', object: 'them', possessive: 'their' },
             ratings: row.ratings,
+            order: row.order,
             note: row.note,
           }
           students.push(fresh)
@@ -94,6 +95,7 @@ export default function ReportsPanel({ state, update, klass, updateClass }: Prop
           students[i] = {
             ...students[i],
             ratings: { ...students[i].ratings, ...row.ratings },
+            order: row.order.length ? row.order : students[i].order,
             note: row.note.trim() ? row.note : students[i].note,
           }
           updated += 1

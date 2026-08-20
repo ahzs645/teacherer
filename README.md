@@ -26,6 +26,9 @@ Teacherer does the same thing, without the 247 `#N/A`s and the link to a file on
 - **Students** — roster with search and A–Z sort, pronoun presets (she/he/they, or custom),
   a level picker per category, an optional per-student note, and a live preview with a
   character count.
+- **Order** — the Comment Bank's top-to-bottom order is the class default; any single student
+  can have their sentences stitched in a different order, the way you could rewrite one row's
+  `CONCAT` in the spreadsheet. It travels in the exported `Comment order` column.
 - **Grid** — every student down the side, every category across the top. Type a digit, fill
   a column down, or paste a column straight out of your gradebook.
 - **Reports & Export** — every student's comment on one page; copy individually or all at
@@ -35,7 +38,8 @@ Teacherer does the same thing, without the 247 `#N/A`s and the link to a file on
 
 ## Keyboard
 
-Press <kbd>?</kbd> anywhere for the full list. The essentials:
+Press <kbd>?</kbd> anywhere for the full list, or the <kbd>?</kbd> button in the header for a
+plain-language guide to what every option does. The essentials:
 
 | Keys | What |
 |---|---|
@@ -49,6 +53,7 @@ Press <kbd>?</kbd> anywhere for the full list. The essentials:
 | <kbd>a</kbd> | next phrasing for that level |
 | <kbd>Ctrl/⌘</kbd> + <kbd>D</kbd> | (grid) copy the cell above |
 | <kbd>Ctrl/⌘</kbd> + <kbd>⇧</kbd> + <kbd>D</kbd> | (grid) fill the value down the column |
+| <kbd>Ctrl/⌘</kbd> + <kbd>↑</kbd>/<kbd>↓</kbd> | move a sentence in the Order list |
 | <kbd>Ctrl/⌘</kbd> + <kbd>⇧</kbd> + <kbd>C</kbd> | copy the current student's comment |
 
 Bare letters only fire when you are not typing in a field.

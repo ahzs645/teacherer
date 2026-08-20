@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from 'react'
 import type { Category, Klass, Level, PickCode, PronounPreset, Student } from '../types'
 import { LEVELS } from '../types'
-import { generateComment, pickText } from '../lib/generate'
+import {
+  categoryText,
+  generateComment,
+  orderedCategories,
+  pickText,
+  substitutePlaceholders,
+} from '../lib/generate'
 import { PRONOUN_PRESETS, isPresetKey } from '../lib/pronouns'
 import {
   cycleVariant,
@@ -14,6 +20,7 @@ import {
   sortPicks,
   variantCount,
 } from '../lib/ratings'
+import { MOD_LABEL, mod } from '../lib/keys'
 import { copyText } from '../lib/util'
 
 export type Pane = 'roster' | 'editor'
@@ -121,6 +128,23 @@ export default function StudentsPanel({
   }
 
   const picksOf = (cat: Category): PickCode[] => (student ? (student.ratings[cat.id] ?? []) : [])
+
+  /** The sentences this student's comment is built from, in stitching order. */
+  const ordered = student ? orderedCategories(klass.categories, student) : []
+
+  /** Writes the whole visible order, so later ratings just append at the end. */
+  const moveOrderItem = (index: number, delta: number) => {
+    if (!student) return
+    const to = index + delta
+    if (to < 0 || to >= ordered.length) return
+    const ids = ordered.map((c) => c.id)
+    ;[ids[index], ids[to]] = [ids[to], ids[index]]
+    patchStudent(student.id, (s) => ({ ...s, order: ids }))
+  }
+
+  const resetOrder = () => {
+    if (student) patchStudent(student.id, (s) => ({ ...s, order: [] }))
+  }
 
   /** 1-4 sets a level, 0/backspace clears, "a" steps to the next phrasing. */
   const onRatingKeyDown = (e: ReactKeyboardEvent, cat: Category) => {
@@ -371,6 +395,74 @@ export default function StudentsPanel({
                 </div>
               </div>
             ))}
+
+            <h3>
+              Order <span className="muted">(this student only)</span>
+            </h3>
+            {ordered.length < 2 ? (
+              <p className="hint">
+                Rate two or more categories and you can reorder their sentences here, just for this
+                student. The Comment Bank&apos;s top-to-bottom order is the class default.
+              </p>
+            ) : (
+              <>
+                <p className="hint">
+                  Move a sentence with the arrows, or <kbd>{MOD_LABEL}</kbd> + <kbd>↑</kbd>/
+                  <kbd>↓</kbd> while one is focused. The personal note always goes last.
+                </p>
+                <ol className="order-list">
+                  {ordered.map((cat, i) => (
+                    <li
+                      key={cat.id}
+                      className="order-row"
+                      onKeyDown={(e) => {
+                        if (!mod(e)) return
+                        if (e.key === 'ArrowUp') {
+                          e.preventDefault()
+                          moveOrderItem(i, -1)
+                        } else if (e.key === 'ArrowDown') {
+                          e.preventDefault()
+                          moveOrderItem(i, 1)
+                        }
+                      }}
+                    >
+                      <span className="order-index">{i + 1}</span>
+                      <span className="order-text">
+                        <b>{cat.name}</b>{' '}
+                        <span className="muted">
+                          {substitutePlaceholders(categoryText(cat, picksOf(cat)), student)}
+                        </span>
+                      </span>
+                      <span className="order-move">
+                        <button
+                          className="btn small"
+                          disabled={i === 0}
+                          aria-label={`Move ${cat.name} earlier`}
+                          onClick={() => moveOrderItem(i, -1)}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          className="btn small"
+                          disabled={i === ordered.length - 1}
+                          aria-label={`Move ${cat.name} later`}
+                          onClick={() => moveOrderItem(i, 1)}
+                        >
+                          ↓
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                {student.order.length > 0 && (
+                  <div className="btn-row">
+                    <button className="btn small subtle" onClick={resetOrder}>
+                      Reset to bank order
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
 
             <h3>
               Personal note <span className="muted">(optional, appended verbatim)</span>

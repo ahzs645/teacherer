@@ -14,7 +14,8 @@ import type { Pane } from './components/StudentsPanel'
 import GridPanel from './components/GridPanel'
 import BankPanel from './components/BankPanel'
 import ReportsPanel from './components/ReportsPanel'
-import ShortcutsDialog from './components/ShortcutsDialog'
+import HelpDialog from './components/HelpDialog'
+import type { HelpTab } from './components/HelpDialog'
 
 const iconUrl = `${import.meta.env.BASE_URL}icons/icon-192.png`
 
@@ -39,7 +40,8 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [sortAZ, setSortAZ] = useState(false)
   const [pane, setPane] = useState<Pane>('roster')
-  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpTab, setHelpTab] = useState<HelpTab>('guide')
   const [focusNameToken, setFocusNameToken] = useState(0)
   const firstRender = useRef(true)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -167,10 +169,12 @@ export default function App() {
           break
         case '?':
           e.preventDefault()
-          setShortcutsOpen(true)
+          // pressing "?" is a keyboard question, so land on that tab
+          setHelpTab('keys')
+          setHelpOpen(true)
           break
         case 'Escape':
-          setShortcutsOpen(false)
+          setHelpOpen(false)
           break
         case '/':
           e.preventDefault()
@@ -221,9 +225,12 @@ export default function App() {
           {offline && <span id="offline-badge">Offline ready</span>}
           <button
             className="btn small help-btn"
-            onClick={() => setShortcutsOpen(true)}
-            title="Keyboard shortcuts (?)"
-            aria-label="Keyboard shortcuts"
+            onClick={() => {
+              setHelpTab('guide')
+              setHelpOpen(true)
+            }}
+            title="Help — what everything does, and the shortcuts (?)"
+            aria-label="Help"
           >
             ?
           </button>
@@ -289,13 +296,24 @@ export default function App() {
 
       <footer className="app-footer">
         <span>All data stays on your device.</span>
-        <button className="link-btn" onClick={() => setShortcutsOpen(true)}>
-          Keyboard shortcuts
+        <button
+          className="link-btn"
+          onClick={() => {
+            setHelpTab('guide')
+            setHelpOpen(true)
+          }}
+        >
+          Help &amp; shortcuts
         </button>
         <span>v{__APP_VERSION__}</span>
       </footer>
 
-      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <HelpDialog
+        open={helpOpen}
+        tab={helpTab}
+        setTab={setHelpTab}
+        onClose={() => setHelpOpen(false)}
+      />
     </>
   )
 }

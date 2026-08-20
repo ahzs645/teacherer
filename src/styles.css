@@ -238,7 +238,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 }
 .rating-cell.excluded { opacity: 0.62; border-style: dashed; }
 .rating-cell .cat-name { font-size: 0.85rem; font-weight: 600; }
-.level-toggles { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.level-toggles { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr)); gap: 0.3rem; }
 .lvl-toggle {
   font-family: inherit;
   font-size: 0.85rem;
@@ -248,10 +248,54 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
-  flex: 1 1 auto;
 }
 .lvl-toggle.on { background: var(--brand); border-color: var(--brand); color: #fff; }
 .variant-btn { align-self: flex-start; }
+
+/* ---------- per-student order ---------- */
+.order-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  counter-reset: none;
+}
+.order-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.55rem;
+  background: var(--surface);
+}
+.order-index {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--raised);
+  border-radius: 999px;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.order-text {
+  min-width: 0;
+  font-size: 0.88rem;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.order-move { display: flex; gap: 0.25rem; }
+.order-move .btn[disabled] { opacity: 0.4; cursor: default; }
+.order-move .btn[disabled]:hover { border-color: var(--border); }
 
 .preview {
   border: 1px solid var(--border);
@@ -420,7 +464,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .report-card .none { color: var(--muted); font-style: italic; }
 
 /* ---------- shortcuts dialog ---------- */
-dialog.shortcuts {
+dialog.help-dialog {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
@@ -430,7 +474,7 @@ dialog.shortcuts {
   max-height: min(85dvh, 44rem);
   overflow: auto;
 }
-dialog.shortcuts::backdrop { background: rgb(0 0 0 / 0.45); }
+dialog.help-dialog::backdrop { background: rgb(0 0 0 / 0.45); }
 .shortcuts-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
 .shortcuts-head h2 { margin: 0; }
 .shortcuts-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 0.5rem 1.75rem; }
@@ -440,6 +484,46 @@ dialog.shortcuts::backdrop { background: rgb(0 0 0 / 0.45); }
 .shortcut-row dt { display: flex; flex-wrap: wrap; gap: 0.2rem; align-items: center; }
 .shortcut-row dd { margin: 0; font-size: 0.88rem; color: var(--muted); }
 .joiner { font-size: 0.75rem; color: var(--muted); }
+
+.help-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.75rem;
+}
+.help-tab {
+  font-family: inherit;
+  font-size: 0.95rem;
+  border: none;
+  background: none;
+  color: var(--muted);
+  padding: 0.45rem 0.85rem;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+.help-tab:hover { color: var(--text); }
+.help-tab.active { color: var(--brand); border-bottom-color: var(--brand); font-weight: 600; }
+
+.help-guide { display: flex; flex-direction: column; gap: 1.1rem; }
+.help-section h3 {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  margin: 0 0 0.4rem;
+}
+.help-section dl { margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.help-row { display: grid; grid-template-columns: minmax(8rem, 11rem) 1fr; gap: 0.25rem 1rem; align-items: baseline; }
+.help-row dt { font-weight: 600; font-size: 0.9rem; }
+.help-row dd { margin: 0; font-size: 0.9rem; color: var(--muted); }
+.help-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.help-table th, .help-table td { text-align: left; padding: 0.3rem 0.6rem 0.3rem 0; border-bottom: 1px solid var(--border); }
+.help-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.help-table tr:last-child td { border-bottom: none; }
+@media (max-width: 560px) {
+  .help-row { grid-template-columns: 1fr; }
+}
 
 .app-footer {
   border-top: 1px solid var(--border);
@@ -492,6 +576,17 @@ dialog.shortcuts::backdrop { background: rgb(0 0 0 / 0.45); }
   .class-picker select { max-width: 9rem; }
   .header-status { font-size: 0.72rem; }
   .app-header { gap: 0.4rem 0.6rem; }
+
+  /* give the sentence preview its own lines instead of an ellipsis */
+  .order-text { white-space: normal; }
+  .order-text b { display: block; }
+  .order-text .muted {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 
   /* a collapsed category is one tappable row, not a stack of controls */
   .bank-cat.collapsed .cat-actions { display: none; }

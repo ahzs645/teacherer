@@ -69,6 +69,7 @@ function normaliseStudent(raw: Dict): Student {
       possessive: String(p.possessive ?? 'their'),
     },
     ratings,
+    order: Array.isArray(raw.order) ? raw.order.filter((v): v is string => typeof v === 'string') : [],
     note: typeof raw.note === 'string' ? raw.note : '',
   }
 }

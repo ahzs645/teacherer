@@ -1,7 +1,7 @@
 import type * as XLSXTypes from 'xlsx'
 import type { AppState, Category, Klass, Level, PickCode, Student } from '../types'
 import { LEVELS, activeClass } from '../types'
-import { generateComment } from './generate'
+import { generateComment, orderedCategories } from './generate'
 import { makeStudent, presetFromText } from './pronouns'
 import { formatCell, parseCell, parsePick, poolFor } from './ratings'
 import { downloadBlob, todayStamp, uid } from './util'
@@ -20,6 +20,8 @@ export interface RatingsImportRow {
   name: string
   pronouns: string
   ratings: Record<string, PickCode[]>
+  /** category ids, when the sheet carried a custom assembly order */
+  order: string[]
   note: string
 }
 
@@ -100,9 +102,19 @@ function commentsRows(klass: Klass): Row[] {
   return rows
 }
 
+const ORDER_SEPARATOR = ' | '
+
+/** Blank unless the student overrides the bank order, so a plain sheet stays plain. */
+function orderCell(klass: Klass, st: Student): string {
+  if (!st.order.length) return ''
+  return orderedCategories(klass.categories, st)
+    .map((c) => c.name)
+    .join(ORDER_SEPARATOR)
+}
+
 function ratingsRows(klass: Klass): Row[] {
   const rows: Row[] = [
-    ['Student', 'Pronouns', ...klass.categories.map((c) => c.name), 'Personal note'],
+    ['Student', 'Pronouns', ...klass.categories.map((c) => c.name), 'Personal note', 'Comment order'],
   ]
   for (const st of klass.students) {
     rows.push([
@@ -112,6 +124,7 @@ function ratingsRows(klass: Klass): Row[] {
       // instead of being mangled into numbers by Excel.
       ...klass.categories.map((c) => formatCell(st.ratings[c.id] ?? [])),
       st.note,
+      orderCell(klass, st),
     ])
   }
   return rows
@@ -162,6 +175,7 @@ export async function exportXlsx(state: AppState): Promise<void> {
       { wch: 10 },
       ...klass.categories.map(() => ({ wch: 14 })),
       { wch: 40 },
+      { wch: 34 },
     ]
     XLSX.utils.book_append_sheet(wb, wsRatings, nameSheet(klass.name, 'Ratings'))
   }
@@ -263,6 +277,8 @@ const RESERVED_COLUMNS = new Set([
   'comment',
   'characters',
   'class',
+  'commentorder',
+  'order',
 ])
 
 function isNameHeader(key: string): boolean {
@@ -271,6 +287,22 @@ function isNameHeader(key: string): boolean {
 
 function isNoteHeader(key: string): boolean {
   return key === 'personalnote' || key === 'note'
+}
+
+function isOrderHeader(key: string): boolean {
+  return key === 'commentorder' || key === 'order'
+}
+
+/** "Content Knowledge | US1" -> the ids of those categories, unknown names dropped. */
+function parseOrderCell(value: unknown, index: Map<string, Category>): string[] {
+  const text = cellText(value)
+  if (!text) return []
+  const ids: string[] = []
+  for (const part of text.split(/[|;>]+/)) {
+    const cat = index.get(matchKey(part))
+    if (cat && !ids.includes(cat.id)) ids.push(cat.id)
+  }
+  return ids
 }
 
 /** name key -> category, with the "<group> · <name>" form as a fallback. */
@@ -337,6 +369,7 @@ export async function parseRatingsFile(file: File, categories: Category[]): Prom
   let nameCol = -1
   let pronounCol = -1
   let noteCol = -1
+  let orderCol = -1
 
   for (let c = 0; c < header.length; c += 1) {
     const label = cellText(header[c])
@@ -353,6 +386,10 @@ export async function parseRatingsFile(file: File, categories: Category[]): Prom
     }
     if (noteCol < 0 && isNoteHeader(key)) {
       noteCol = c
+      continue
+    }
+    if (orderCol < 0 && isOrderHeader(key)) {
+      orderCol = c
       continue
     }
     const cat = index.get(key)
@@ -388,6 +425,7 @@ export async function parseRatingsFile(file: File, categories: Category[]): Prom
       name,
       pronouns: pronounCol >= 0 ? cellText(row[pronounCol]) : '',
       ratings,
+      order: orderCol >= 0 ? parseOrderCell(row[orderCol], index) : [],
       note: noteCol >= 0 ? cellText(row[noteCol]) : '',
     })
   }
