@@ -1,142 +1,20 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#1e5c8a">
-  <meta name="description" content="Local-first report card comment generator for teachers. Your data never leaves your device.">
-  <title>Teacherer – Report Comment Tool</title>
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon-192.png" type="image/png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <header class="app-header">
-    <div class="brand">
-      <img src="icons/icon-192.png" alt="" width="28" height="28">
-      <h1>Teacherer</h1>
-      <span class="tagline">report comment tool · local-first</span>
-    </div>
-    <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="students" role="tab" aria-selected="true">Students</button>
-      <button class="tab" data-tab="bank" role="tab" aria-selected="false">Comment Bank</button>
-      <button class="tab" data-tab="reports" role="tab" aria-selected="false">Reports &amp; Export</button>
-    </nav>
-    <div class="header-status">
-      <span id="save-status" title="All changes are saved to this device automatically">Saved locally</span>
-      <span id="offline-badge" hidden>Offline ready</span>
-    </div>
-  </header>
-
-  <main>
-    <!-- ======================= STUDENTS ======================= -->
-    <section id="panel-students" class="panel active" role="tabpanel">
-      <div class="split">
-        <aside class="roster">
-          <div class="roster-head">
-            <h2>Class roster</h2>
-            <button id="add-student" class="btn primary" title="Add a student">+ Add</button>
-          </div>
-          <ul id="student-list" class="student-list"></ul>
-          <p class="hint">Tip: import a roster from a spreadsheet in <em>Reports &amp; Export</em>.</p>
-        </aside>
-        <div class="student-editor" id="student-editor">
-          <p class="empty-note" id="no-student-note">Add or select a student to begin.</p>
-          <div id="student-form" hidden>
-            <div class="field-row">
-              <label class="field grow">
-                <span>Student name</span>
-                <input type="text" id="student-name" placeholder="e.g. Jordan" autocomplete="off">
-              </label>
-              <label class="field">
-                <span>Pronouns</span>
-                <select id="student-pronouns">
-                  <option value="she">she / her / her</option>
-                  <option value="he">he / him / his</option>
-                  <option value="they">they / them / their</option>
-                  <option value="custom">custom…</option>
-                </select>
-              </label>
-              <button id="delete-student" class="btn danger" title="Remove this student">Delete</button>
-            </div>
-            <div class="field-row" id="custom-pronouns" hidden>
-              <label class="field"><span>subject (she)</span><input id="pr-subject" type="text"></label>
-              <label class="field"><span>object (her)</span><input id="pr-object" type="text"></label>
-              <label class="field"><span>possessive (her)</span><input id="pr-possessive" type="text"></label>
-            </div>
-
-            <h3>Ratings</h3>
-            <p class="hint">Pick a level for each category you want in this student's comment. Leave a category on “—” to skip it. Categories marked ✎ are unchecked in the Comment Bank and won't appear in the final comment unless enabled there.</p>
-            <div id="rating-grid" class="rating-grid"></div>
-
-            <h3>Personal note <span class="muted">(optional, appended verbatim)</span></h3>
-            <textarea id="student-note" rows="2" placeholder="Anything specific to this student. Placeholders like [Student] and [he/she/they] work here too."></textarea>
-
-            <h3>Generated comment</h3>
-            <div class="preview" id="student-preview"></div>
-            <div class="btn-row">
-              <button id="copy-preview" class="btn">Copy comment</button>
-              <span id="copy-confirm" class="copy-confirm" hidden>Copied ✓</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ======================= COMMENT BANK ======================= -->
-    <section id="panel-bank" class="panel" role="tabpanel">
-      <div class="bank-head">
-        <h2>Comment bank</h2>
-        <p class="hint">
-          Checked categories are stitched together, top to bottom, into each student's final comment.
-          Use placeholders: <code>[Student]</code>, <code>[He/She/They]</code>, <code>[he/she/they]</code>,
-          <code>[His/Her/Their]</code>, <code>[him/her/them]</code>.
-        </p>
-        <div class="btn-row">
-          <button id="add-category" class="btn primary">+ Add category</button>
-          <button id="reset-bank" class="btn subtle" title="Restore the bank that shipped with the app">Reset bank to template</button>
-        </div>
-      </div>
-      <div id="bank-list" class="bank-list"></div>
-    </section>
-
-    <!-- ======================= REPORTS & EXPORT ======================= -->
-    <section id="panel-reports" class="panel" role="tabpanel">
-      <h2>All comments</h2>
-      <div class="btn-row">
-        <button id="export-xlsx" class="btn primary">Download .xlsx</button>
-        <button id="export-csv" class="btn">Download .csv</button>
-        <button id="copy-all" class="btn">Copy all comments</button>
-        <button id="print-reports" class="btn">Print</button>
-      </div>
-      <div id="report-list" class="report-list"></div>
-
-      <h2>Import</h2>
-      <p class="hint">Import a class roster from a spreadsheet (.xlsx or .csv). The first sheet should have a header row with a
-        <strong>Name</strong> column and, optionally, a <strong>Pronouns</strong> column (she, he, or they).</p>
-      <div class="btn-row">
-        <label class="btn file-btn">Import roster (.xlsx / .csv)<input type="file" id="import-roster" accept=".xlsx,.xls,.csv" hidden></label>
-      </div>
-
-      <h2>Backup</h2>
-      <p class="hint">Everything lives only in this browser. Download a backup before clearing browser data or to move to another device.</p>
-      <div class="btn-row">
-        <label class="btn file-btn">Restore backup (.json)<input type="file" id="import-json" accept=".json,application/json" hidden></label>
-        <button id="export-json" class="btn">Download backup (.json)</button>
-        <button id="wipe-data" class="btn danger">Erase all local data</button>
-      </div>
-    </section>
-  </main>
-
-  <footer class="app-footer">
-    <span>All data stays on your device.</span>
-    <span id="app-version"></span>
-  </footer>
-
-  <script src="vendor/xlsx.full.min.js" defer></script>
-  <script src="seed-data.js" defer></script>
-  <script src="app.js" defer></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#1e5c8a" />
+    <meta
+      name="description"
+      content="Local-first report card comment generator for teachers. Your data never leaves your device."
+    />
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <title>Teacherer – Report Comment Tool</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

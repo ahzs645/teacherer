@@ -36,32 +36,35 @@ Use these anywhere in comment bank text or personal notes:
 
 | Placeholder | Becomes |
 |---|---|
-| `[Student]` | student's first name |
+| `[Student]` | student's name |
 | `[He/She/They]` / `[he/she/they]` | subject pronoun (capitalised / lowercase) |
 | `[His/Her/Their]` / `[his/her/their]` | possessive pronoun (lowercase, as in the original sheet) |
 | `[Him/Her/Them]` / `[him/her/them]` | object pronoun |
 
 ## Running locally
 
-It's a plain static site — no build step. Either open `index.html` directly, or serve the
-folder (service worker/offline support needs http):
-
 ```sh
-python3 -m http.server 8080
-# → http://localhost:8080
+npm install
+npm run dev       # dev server with HMR
+npm run build     # type-check + production build into dist/
+npm run preview   # serve the production build (needed to test the PWA/offline)
 ```
 
 ## Deployment (GitHub Actions → GitHub Pages)
 
-`.github/workflows/deploy.yml` publishes the site to GitHub Pages on every push to `main`
-(or manually via *Run workflow*). One-time setup: in the repo's **Settings → Pages**, set
-**Source** to **GitHub Actions**. The app then lives at
+`.github/workflows/deploy.yml` lints, builds, and publishes `dist/` to GitHub Pages on every
+push to `main` (or manually via *Run workflow*). One-time setup: in the repo's
+**Settings → Pages**, set **Source** to **GitHub Actions**. The app then lives at
 `https://<user>.github.io/teacherer/`.
 
 ## Tech notes
 
-- Vanilla HTML/CSS/JS, no framework, no build step.
-- [SheetJS](https://sheetjs.com) (`vendor/xlsx.full.min.js`) vendored for .xlsx import/export,
-  so the app works offline.
-- `sw.js` precaches all assets; bump `CACHE_VERSION` when shipping changes to precached files.
-- The default comment bank lives in `seed-data.js`, extracted from the original template.
+- React 19 + TypeScript (strict) + Vite 8; state is a single typed `AppState` in
+  `localStorage` (same key/shape as the original vanilla version, so existing data carries over).
+- [SheetJS](https://sheetjs.com) (installed from the SheetJS CDN tarball, npm's `xlsx` is
+  outdated) handles .xlsx/.csv import/export; it's lazy-loaded so the app shell stays small,
+  and the service worker precaches the chunk so exports work offline.
+- `vite-plugin-pwa` generates the manifest + Workbox service worker (`autoUpdate`); the whole
+  app is precached for offline use.
+- The default comment bank lives in `src/seedData.ts`, extracted from the original template;
+  comment assembly is in `src/lib/generate.ts`.

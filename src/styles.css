@@ -212,11 +212,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 
 /* ---------- print: just the report cards ---------- */
 @media print {
-  .app-header, .app-footer, .btn-row, .hint, #panel-reports h2:not(:first-of-type),
-  #panel-reports .file-btn, .report-card .btn { display: none !important; }
+  .app-header, .app-footer, .btn-row, .hint, .panel-reports h2:not(:first-of-type),
+  .panel-reports .file-btn, .report-card .btn { display: none !important; }
   body { background: #fff; color: #000; }
   main { width: 100%; padding: 0; }
   .panel { display: none !important; }
-  #panel-reports { display: block !important; }
+  .panel-reports { display: block !important; }
   .report-card { border: none; border-bottom: 1px solid #ccc; border-radius: 0; page-break-inside: avoid; }
 }
