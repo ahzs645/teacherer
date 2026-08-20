@@ -1,4 +1,4 @@
-import type { Pronouns, PronounPreset, Student, Level } from '../types'
+import type { Pronouns, PronounPreset, Student, PickCode } from '../types'
 import { uid } from './util'
 
 export const PRONOUN_PRESETS: Record<Exclude<PronounPreset, 'custom'>, Omit<Pronouns, 'preset'>> = {
@@ -14,7 +14,7 @@ export function isPresetKey(v: string): v is Exclude<PronounPreset, 'custom'> {
 export function makeStudent(
   name: string,
   preset: string,
-  ratings: Record<string, Level> = {},
+  ratings: Record<string, PickCode[]> = {},
 ): Student {
   const key = isPresetKey(preset) ? preset : 'they'
   return {

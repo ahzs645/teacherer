@@ -1,4 +1,5 @@
 import type { Category, Student } from '../types'
+import { parsePick, poolFor, sortPicks } from './ratings'
 import { capitalize } from './util'
 
 export function substitutePlaceholders(text: string, student: Student): string {
@@ -18,14 +19,22 @@ export function substitutePlaceholders(text: string, student: Student): string {
   )
 }
 
+/** The text one chosen pick contributes, from that level's phrasing pool. */
+export function pickText(cat: Category, code: string): string {
+  const p = parsePick(code)
+  if (!p) return ''
+  const pool = poolFor(cat, p.level)
+  return (pool[p.variant] ?? pool[0] ?? '').trim()
+}
+
 export function generateComment(categories: Category[], student: Student): string {
   const parts: string[] = []
   for (const cat of categories) {
     if (!cat.include) continue
-    const lvl = student.ratings[cat.id]
-    if (!lvl) continue
-    const text = (cat.levels[lvl] ?? '').trim()
-    if (text) parts.push(text)
+    for (const code of sortPicks(student.ratings[cat.id] ?? [])) {
+      const text = pickText(cat, code)
+      if (text) parts.push(text)
+    }
   }
   const note = student.note.trim()
   if (note) parts.push(note)

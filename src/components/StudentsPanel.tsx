@@ -1,38 +1,98 @@
-import { useState } from 'react'
-import type { AppState, Level, PronounPreset, Student } from '../types'
+import { useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from 'react'
+import type { Category, Klass, Level, PickCode, PronounPreset, Student } from '../types'
 import { LEVELS } from '../types'
-import { generateComment } from '../lib/generate'
-import { PRONOUN_PRESETS, isPresetKey, makeStudent } from '../lib/pronouns'
+import { generateComment, pickText } from '../lib/generate'
+import { PRONOUN_PRESETS, isPresetKey } from '../lib/pronouns'
+import {
+  cycleVariant,
+  isLevel,
+  parsePick,
+  pickForLevel,
+  poolFor,
+  setLevel,
+  sortPicks,
+  variantCount,
+} from '../lib/ratings'
 import { copyText } from '../lib/util'
 
+export type Pane = 'roster' | 'editor'
+
 interface Props {
-  state: AppState
-  update: (fn: (prev: AppState) => AppState) => void
+  klass: Klass
+  updateClass: (fn: (prev: Klass) => Klass) => void
+  /** roster as shown: already filtered and sorted by the parent */
+  students: Student[]
   selectedId: string | null
   onSelect: (id: string | null) => void
+  query: string
+  setQuery: (q: string) => void
+  sortAZ: boolean
+  setSortAZ: (v: boolean) => void
+  searchRef: RefObject<HTMLInputElement | null>
+  pane: Pane
+  setPane: (p: Pane) => void
+  onAddStudent: () => void
+  /** bumped when a student is added, so the name field takes focus */
+  focusNameToken: number
 }
 
-export default function StudentsPanel({ state, update, selectedId, onSelect }: Props) {
+/** Categories in bank order, split into their competency groups. */
+function grouped(categories: Category[]): { group: string; cats: Category[] }[] {
+  const out: { group: string; cats: Category[] }[] = []
+  for (const cat of categories) {
+    const last = out[out.length - 1]
+    if (last && last.group === cat.group) last.cats.push(cat)
+    else out.push({ group: cat.group, cats: [cat] })
+  }
+  return out
+}
+
+function levelLabel(cat: Category, lvl: Level): string {
+  const label = cat.levelLabels?.[lvl]
+  return label ? `${lvl} · ${label}` : `Level ${lvl}`
+}
+
+export default function StudentsPanel({
+  klass,
+  updateClass,
+  students,
+  selectedId,
+  onSelect,
+  query,
+  setQuery,
+  sortAZ,
+  setSortAZ,
+  searchRef,
+  pane,
+  setPane,
+  onAddStudent,
+  focusNameToken,
+}: Props) {
   const [copied, setCopied] = useState(false)
-  const student = state.students.find((s) => s.id === selectedId) ?? null
+  const listRef = useRef<HTMLUListElement>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
+  const student = klass.students.find((s) => s.id === selectedId) ?? null
+
+  // keep the selected roster row in view as the selection moves by keyboard
+  useEffect(() => {
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [selectedId])
+
+  // a freshly added student lands with an empty name — put the cursor there
+  useEffect(() => {
+    if (focusNameToken > 0) nameRef.current?.focus()
+  }, [focusNameToken])
 
   const patchStudent = (id: string, patch: (s: Student) => Student) => {
-    update((prev) => ({
-      ...prev,
-      students: prev.students.map((s) => (s.id === id ? patch(s) : s)),
-    }))
-  }
-
-  const addStudent = () => {
-    const st = makeStudent('', 'they')
-    update((prev) => ({ ...prev, students: [...prev.students, st] }))
-    onSelect(st.id)
+    updateClass((prev) => ({ ...prev, students: prev.students.map((s) => (s.id === id ? patch(s) : s)) }))
   }
 
   const deleteStudent = () => {
     if (!student) return
     if (!confirm(`Remove ${student.name || 'this student'} and their ratings?`)) return
-    update((prev) => ({ ...prev, students: prev.students.filter((s) => s.id !== student.id) }))
+    updateClass((prev) => ({ ...prev, students: prev.students.filter((s) => s.id !== student.id) }))
+    setPane('roster')
   }
 
   const setPreset = (preset: string) => {
@@ -47,47 +107,127 @@ export default function StudentsPanel({ state, update, selectedId, onSelect }: P
 
   const setPronounPart = (part: 'subject' | 'object' | 'possessive', value: string) => {
     if (!student) return
-    patchStudent(student.id, (s) => ({
-      ...s,
-      pronouns: { ...s.pronouns, [part]: value },
-    }))
+    patchStudent(student.id, (s) => ({ ...s, pronouns: { ...s.pronouns, [part]: value } }))
   }
 
-  const setRating = (catId: string, lvl: string) => {
+  const writePicks = (catId: string, picks: PickCode[]) => {
     if (!student) return
     patchStudent(student.id, (s) => {
       const ratings = { ...s.ratings }
-      if (lvl) ratings[catId] = lvl as Level
+      if (picks.length) ratings[catId] = picks
       else delete ratings[catId]
       return { ...s, ratings }
     })
   }
 
-  const comment = student ? generateComment(state.categories, student) : ''
+  const picksOf = (cat: Category): PickCode[] => (student ? (student.ratings[cat.id] ?? []) : [])
+
+  /** 1-4 sets a level, 0/backspace clears, "a" steps to the next phrasing. */
+  const onRatingKeyDown = (e: ReactKeyboardEvent, cat: Category) => {
+    const picks = picksOf(cat)
+    if (isLevel(e.key)) {
+      e.preventDefault()
+      writePicks(cat.id, setLevel(cat, picks, e.key))
+      return
+    }
+    if (e.key === '0' || e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault()
+      writePicks(cat.id, [])
+      return
+    }
+    if (e.key.toLowerCase() === 'a' && picks.length) {
+      const first = parsePick(sortPicks(picks)[0])
+      if (first && variantCount(cat, first.level) > 1) {
+        e.preventDefault()
+        writePicks(cat.id, cycleVariant(cat, picks, first.level, e.shiftKey ? -1 : 1))
+      }
+    }
+  }
+
+  const onRosterKeyDown = (e: ReactKeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return
+    e.preventDefault()
+    const i = students.findIndex((s) => s.id === selectedId)
+    const next =
+      e.key === 'Home' ? 0
+      : e.key === 'End' ? students.length - 1
+      : Math.min(students.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))
+    const target = students[next]
+    if (target) onSelect(target.id)
+  }
+
+  const openStudent = (id: string) => {
+    onSelect(id)
+    setPane('editor')
+  }
+
+  const comment = student ? generateComment(klass.categories, student) : ''
 
   return (
-    <div className="split">
+    <div className="split" data-pane={pane}>
       <aside className="roster">
         <div className="roster-head">
-          <h2>Class roster</h2>
-          <button className="btn primary" onClick={addStudent} title="Add a student">
+          <h2>{klass.name}</h2>
+          <button className="btn primary" onClick={onAddStudent} title="Add a student (n)">
             + Add
           </button>
         </div>
-        <ul className="student-list">
-          {state.students.map((s) => (
+        <div className="roster-tools">
+          <input
+            ref={searchRef}
+            type="search"
+            className="roster-search"
+            value={query}
+            placeholder="Search students   /"
+            aria-label="Search students"
+            autoComplete="off"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setQuery('')
+                e.currentTarget.blur()
+              }
+              if (e.key === 'Enter' && students[0]) openStudent(students[0].id)
+            }}
+          />
+          <button
+            className={`btn small${sortAZ ? ' pressed' : ''}`}
+            aria-pressed={sortAZ}
+            title="Sort the roster A-Z"
+            onClick={() => setSortAZ(!sortAZ)}
+          >
+            A-Z
+          </button>
+        </div>
+        <ul
+          className="student-list"
+          ref={listRef}
+          role="listbox"
+          aria-label="Class roster"
+          tabIndex={students.length ? 0 : -1}
+          onKeyDown={onRosterKeyDown}
+        >
+          {students.map((s) => (
             <li
               key={s.id}
+              role="option"
+              aria-selected={s.id === selectedId}
               className={s.id === selectedId ? 'selected' : ''}
-              onClick={() => onSelect(s.id)}
+              onClick={() => openStudent(s.id)}
             >
-              <span>{s.name || '(unnamed)'}</span>
+              <span className="student-name">{s.name || '(unnamed)'}</span>
               <span className="badge">{s.pronouns.subject}</span>
             </li>
           ))}
+          {!students.length && (
+            <li className="roster-empty" aria-disabled="true">
+              {klass.students.length ? 'No student matches that search.' : 'No students yet.'}
+            </li>
+          )}
         </ul>
-        <p className="hint">
-          Tip: import a roster from a spreadsheet in <em>Reports &amp; Export</em>.
+        <p className="hint roster-count">
+          {klass.students.length} student{klass.students.length === 1 ? '' : 's'}
+          {query.trim() && ` · ${students.length} shown`}
         </p>
       </aside>
 
@@ -96,10 +236,15 @@ export default function StudentsPanel({ state, update, selectedId, onSelect }: P
           <p className="empty-note">Add or select a student to begin.</p>
         ) : (
           <div>
+            <button className="btn back-to-roster" onClick={() => setPane('roster')}>
+              ‹ All students
+            </button>
+
             <div className="field-row">
               <label className="field grow">
                 <span>Student name</span>
                 <input
+                  ref={nameRef}
                   type="text"
                   value={student.name}
                   placeholder="e.g. Jordan"
@@ -116,14 +261,11 @@ export default function StudentsPanel({ state, update, selectedId, onSelect }: P
                   <option value="custom">custom…</option>
                 </select>
               </label>
-              <button className="btn danger" onClick={deleteStudent} title="Remove this student">
-                Delete
-              </button>
             </div>
 
             {student.pronouns.preset === 'custom' && (
               <div className="field-row">
-                <label className="field">
+                <label className="field grow">
                   <span>subject (she)</span>
                   <input
                     type="text"
@@ -131,7 +273,7 @@ export default function StudentsPanel({ state, update, selectedId, onSelect }: P
                     onChange={(e) => setPronounPart('subject', e.target.value)}
                   />
                 </label>
-                <label className="field">
+                <label className="field grow">
                   <span>object (her)</span>
                   <input
                     type="text"
@@ -139,7 +281,7 @@ export default function StudentsPanel({ state, update, selectedId, onSelect }: P
                     onChange={(e) => setPronounPart('object', e.target.value)}
                   />
                 </label>
-                <label className="field">
+                <label className="field grow">
                   <span>possessive (her)</span>
                   <input
                     type="text"
@@ -152,56 +294,112 @@ export default function StudentsPanel({ state, update, selectedId, onSelect }: P
 
             <h3>Ratings</h3>
             <p className="hint">
-              Pick a level for each category you want in this student's comment. Leave a category on
-              “—” to skip it. Categories marked ✎ are unchecked in the Comment Bank and won't appear
-              in the final comment unless enabled there.
+              Pick a level for each category you want in this comment. Categories marked ✎ are
+              switched off in the Comment Bank and stay out of the final text. With a rating focused,
+              type <kbd>1</kbd>–<kbd>4</kbd> to set it, <kbd>0</kbd> to clear, <kbd>a</kbd> for the
+              next wording.
             </p>
-            <div className="rating-grid">
-              {state.categories.map((cat) => (
-                <div key={cat.id} className={`rating-cell${cat.include ? '' : ' excluded'}`}>
-                  <span className="cat-name">
-                    {cat.include ? '' : '✎ '}
-                    {cat.name}
-                  </span>
-                  <select
-                    value={student.ratings[cat.id] ?? ''}
-                    onChange={(e) => setRating(cat.id, e.target.value)}
-                  >
-                    <option value="">—</option>
-                    {LEVELS.map((lvl) => (
-                      <option key={lvl} value={lvl}>
-                        {cat.levelLabels?.[lvl] ? `${lvl} · ${cat.levelLabels[lvl]}` : `Level ${lvl}`}
-                      </option>
-                    ))}
-                  </select>
+
+            {grouped(klass.categories).map(({ group, cats }) => (
+              <div key={group || 'ungrouped'} className="rating-group">
+                {group && <h4 className="group-head">{group}</h4>}
+                <div className="rating-grid">
+                  {cats.map((cat) => {
+                    const picks = picksOf(cat)
+                    const chosen = sortPicks(picks)
+                    const first = chosen.length ? parsePick(chosen[0]) : null
+                    const showVariants = !!first && variantCount(cat, first.level) > 1
+                    return (
+                      <div
+                        key={cat.id}
+                        className={`rating-cell${cat.include ? '' : ' excluded'}`}
+                        onKeyDown={(e) => onRatingKeyDown(e, cat)}
+                      >
+                        <span className="cat-name">
+                          {cat.include ? '' : '✎ '}
+                          {cat.name}
+                        </span>
+
+                        {cat.multi ? (
+                          <div className="level-toggles" role="group" aria-label={cat.name}>
+                            {LEVELS.map((lvl) => {
+                              const on = !!pickForLevel(picks, lvl)
+                              return (
+                                <button
+                                  key={lvl}
+                                  type="button"
+                                  className={`lvl-toggle${on ? ' on' : ''}`}
+                                  aria-pressed={on}
+                                  title={poolFor(cat, lvl)[0]}
+                                  onClick={() => writePicks(cat.id, setLevel(cat, picks, lvl))}
+                                >
+                                  {cat.levelLabels?.[lvl] ?? lvl}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <select
+                            aria-label={cat.name}
+                            value={first ? first.level : ''}
+                            onChange={(e) =>
+                              writePicks(cat.id, setLevel(cat, picks, isLevel(e.target.value) ? e.target.value : null))
+                            }
+                          >
+                            <option value="">—</option>
+                            {LEVELS.map((lvl) => (
+                              <option key={lvl} value={lvl}>
+                                {levelLabel(cat, lvl)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+
+                        {showVariants && first && (
+                          <button
+                            type="button"
+                            className="btn small variant-btn"
+                            title={pickText(cat, chosen[0])}
+                            onClick={() => writePicks(cat.id, cycleVariant(cat, picks, first.level))}
+                          >
+                            wording {first.variant + 1}/{variantCount(cat, first.level)}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
 
             <h3>
               Personal note <span className="muted">(optional, appended verbatim)</span>
             </h3>
             <textarea
-              rows={2}
+              rows={3}
               value={student.note}
               placeholder="Anything specific to this student. Placeholders like [Student] and [he/she/they] work here too."
               onChange={(e) => patchStudent(student.id, (s) => ({ ...s, note: e.target.value }))}
             />
 
-            <h3>Generated comment</h3>
+            <h3>
+              Generated comment <span className="muted">{comment.length} characters</span>
+            </h3>
             <div className="preview">{comment}</div>
             <div className="btn-row">
               <button
-                className="btn"
+                className="btn primary"
                 onClick={() => {
                   void copyText(comment)
                   setCopied(true)
                   setTimeout(() => setCopied(false), 1500)
                 }}
               >
-                Copy comment
+                {copied ? 'Copied ✓' : 'Copy comment'}
               </button>
-              {copied && <span className="copy-confirm">Copied ✓</span>}
+              <button className="btn danger" onClick={deleteStudent}>
+                Delete student
+              </button>
             </div>
           </div>
         )}
