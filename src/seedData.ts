@@ -1,4 +1,5 @@
-import type { AppState, Category, Level } from './types'
+import type { AppState, Category, Klass, Level, PickCode } from './types'
+import { LEVELS } from './types'
 import { uid } from './lib/util'
 import { makeStudent } from './lib/pronouns'
 
@@ -14,20 +15,36 @@ import { makeStudent } from './lib/pronouns'
  *   [Him/Her/Them] / [him/her/them]   -> object pronoun
  *
  * Levels follow the 1-4 proficiency scale used in the template, except
- * "Using Class Time" where the level picks a focus area instead
- * (1 Practice, 2 Check work, 3 Participation, 4 Absences).
+ * "Using Class Time" where the four options are independent issues rather than
+ * a scale (Practice, Check work, Participation, Absences) — so it is marked
+ * `multi` and a student can carry more than one.
+ *
+ * Each level holds a *pool* of interchangeable phrasings. The second entry for
+ * Content Knowledge mirrors the template's "Comment2" column (AX): wording for
+ * when the comment continues a paragraph instead of opening it. The sheet
+ * stored those as bare fragments (" has demonstrated a solid…"); here they open
+ * with a pronoun, which is what the fragment was concatenated onto. Add or
+ * remove phrasings for any level from the Comment Bank tab.
+ *
+ * The template also carries empty scaffolding for US3, US4, COMM4 and CR1-CR4.
+ * Those slots have no text in the workbook, so they are not seeded — add them
+ * from the Comment Bank tab if you fill them in.
  */
 
 interface SeedCategory {
   name: string
+  group: string
   include: boolean
+  multi?: boolean
   levelLabels?: Partial<Record<Level, string>>
   levels: Record<Level, string>
+  altLevels?: Partial<Record<Level, string>>
 }
 
 const SEED_CATEGORIES: SeedCategory[] = [
   {
     name: 'Content Knowledge',
+    group: 'Content',
     include: true,
     levels: {
       '1': '[Student] has demonstrated an incomplete understanding of the concepts covered so far.',
@@ -35,9 +52,16 @@ const SEED_CATEGORIES: SeedCategory[] = [
       '3': '[Student] has demonstrated a solid understanding of the concepts covered so far.',
       '4': '[Student] has demonstrated an excellent understanding of the concepts covered so far.',
     },
+    altLevels: {
+      '1': '[He/She/They] has demonstrated an incomplete understanding of the concepts covered so far.',
+      '2': '[He/She/They] has demonstrated a basic understanding of the concepts covered so far.',
+      '3': '[He/She/They] has demonstrated a solid understanding of the concepts covered so far.',
+      '4': '[He/She/They] has demonstrated an excellent understanding of the concepts covered so far.',
+    },
   },
   {
-    name: 'RA4 – Reasoning & Analyzing',
+    name: 'RA4',
+    group: 'Reasoning & Analyzing',
     include: false,
     levels: {
       '1': '[Student] is beginning to recognize patterns and use logical thinking in mathematical tasks. With continued guidance and practice, [he/she/they] will develop greater confidence in analyzing problems.',
@@ -47,7 +71,8 @@ const SEED_CATEGORIES: SeedCategory[] = [
     },
   },
   {
-    name: 'US1 – Understanding & Solving',
+    name: 'US1',
+    group: 'Understanding & Solving',
     include: true,
     levels: {
       '1': '[Student] is learning to select and apply basic strategies when solving problems. Additional practice and support will help strengthen [His/Her/Their] understanding.',
@@ -57,7 +82,8 @@ const SEED_CATEGORIES: SeedCategory[] = [
     },
   },
   {
-    name: 'US2 – Understanding & Solving',
+    name: 'US2',
+    group: 'Understanding & Solving',
     include: false,
     levels: {
       '1': 'They are not yet able to recognize which math concepts to use when solving problems or how to use them appropriately.',
@@ -67,7 +93,8 @@ const SEED_CATEGORIES: SeedCategory[] = [
     },
   },
   {
-    name: 'COMM1 – Communicating',
+    name: 'COMM1',
+    group: 'Communicating',
     include: false,
     levels: {
       '1': '[Student] is learning to express mathematical ideas and often needs support to use appropriate terminology, symbols, and representations.',
@@ -77,7 +104,8 @@ const SEED_CATEGORIES: SeedCategory[] = [
     },
   },
   {
-    name: 'COMM2 – Communicating',
+    name: 'COMM2',
+    group: 'Communicating',
     include: false,
     levels: {
       '1': 'Provides basic answers without much explanation and sometimes struggles to explain the reasoning behind decisions.',
@@ -87,7 +115,8 @@ const SEED_CATEGORIES: SeedCategory[] = [
     },
   },
   {
-    name: 'COMM3 – Communicating',
+    name: 'COMM3',
+    group: 'Communicating',
     include: false,
     levels: {
       '1': 'Struggles to show thinking clearly, relying on only one way, like writing numbers. Needs support to communicate ideas in other ways, like diagrams or words.',
@@ -98,6 +127,7 @@ const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     name: 'Engagement',
+    group: 'Work habits',
     include: false,
     levels: {
       '1': 'Needs reminders to participate in activities and often appears distracted.',
@@ -108,6 +138,7 @@ const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     name: 'Seeking Support',
+    group: 'Work habits',
     include: false,
     levels: {
       '1': 'Reluctant to ask questions. Needs encouragement to ask for support.',
@@ -118,7 +149,9 @@ const SEED_CATEGORIES: SeedCategory[] = [
   },
   {
     name: 'Using Class Time',
+    group: 'Work habits',
     include: true,
+    multi: true,
     levelLabels: { '1': 'Practice', '2': 'Check work', '3': 'Participation', '4': 'Absences' },
     levels: {
       '1': 'Completing more of the assigned practice prior to assessments and seeking support is something [Student] should work on going forward.',
@@ -129,39 +162,55 @@ const SEED_CATEGORIES: SeedCategory[] = [
   },
 ]
 
-const SEED_STUDENTS: { name: string; pronouns: string; ratings: Record<string, Level> }[] = [
-  {
-    name: 'Student A',
-    pronouns: 'she',
-    ratings: { 'Content Knowledge': '3', 'US1 – Understanding & Solving': '3', 'Using Class Time': '1' },
-  },
-  {
-    name: 'Student B',
-    pronouns: 'he',
-    ratings: { 'Content Knowledge': '2', 'US1 – Understanding & Solving': '2', 'Using Class Time': '3' },
-  },
+const SEED_STUDENTS: { name: string; pronouns: string; ratings: Record<string, PickCode[]> }[] = [
+  { name: 'Student A', pronouns: 'she', ratings: { 'Content Knowledge': ['3'], US1: ['3'], 'Using Class Time': ['1'] } },
+  { name: 'Student B', pronouns: 'he', ratings: { 'Content Knowledge': ['2'], US1: ['2'], 'Using Class Time': ['3'] } },
 ]
 
-export function freshStateFromSeed(): AppState {
-  const idByName = new Map<string, string>()
-  const categories: Category[] = SEED_CATEGORIES.map((c) => {
-    const id = uid()
-    idByName.set(c.name, id)
+export function seedCategories(): Category[] {
+  return SEED_CATEGORIES.map((c) => {
+    const levels = {} as Record<Level, string[]>
+    for (const lvl of LEVELS) {
+      const alt = c.altLevels?.[lvl]
+      levels[lvl] = alt ? [c.levels[lvl], alt] : [c.levels[lvl]]
+    }
     return {
-      id,
+      id: uid(),
       name: c.name,
+      group: c.group,
       include: c.include,
+      multi: !!c.multi,
       levelLabels: c.levelLabels ? { ...c.levelLabels } : null,
-      levels: { ...c.levels },
+      levels,
     }
   })
+}
+
+export function seedClass(name = 'My class'): Klass {
+  const categories = seedCategories()
+  const idByName = new Map(categories.map((c) => [c.name, c.id]))
   const students = SEED_STUDENTS.map((s) => {
-    const ratings: Record<string, Level> = {}
-    for (const [catName, lvl] of Object.entries(s.ratings)) {
+    const ratings: Record<string, PickCode[]> = {}
+    for (const [catName, picks] of Object.entries(s.ratings)) {
       const id = idByName.get(catName)
-      if (id) ratings[id] = lvl
+      if (id) ratings[id] = [...picks]
     }
     return makeStudent(s.name, s.pronouns, ratings)
   })
-  return { version: 1, categories, students }
+  return { id: uid(), name, categories, students }
+}
+
+/** A new class that starts from the built-in bank with nobody in it yet. */
+export function emptyClass(name: string): Klass {
+  return { id: uid(), name, categories: seedCategories(), students: [] }
+}
+
+/** A new class with no bank at all, for importing someone else's. */
+export function blankClass(name: string): Klass {
+  return { id: uid(), name, categories: [], students: [] }
+}
+
+export function freshStateFromSeed(): AppState {
+  const klass = seedClass()
+  return { version: 2, classes: [klass], activeClassId: klass.id }
 }
