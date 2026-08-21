@@ -539,14 +539,43 @@
     --btn-h: 2.6rem;
   }
   .ui-btn--xs {
-    --btn-h: 2rem;
+    --btn-h: 2.25rem;
   }
   .ui-btn--sm {
-    --btn-h: 2.35rem;
+    --btn-h: 2.5rem;
+  }
+  /* three 31x25 targets in a row is a mis-tap waiting to happen */
+  .ui-segmented__item {
+    min-height: 2.25rem;
+    min-width: 2.25rem;
+    padding-inline: var(--space-2);
   }
   input[type='text'],
   input[type='search'],
   select {
     min-height: 2.75rem;
+  }
+}
+
+/*
+ * A dialog used as a picker rather than a document: on a phone it comes up
+ * from the bottom, where the thumb already is, instead of floating mid-screen.
+ */
+@media (max-width: 620px) {
+  .ui-dialog--sheet {
+    width: 100vw;
+    max-width: none;
+    margin: auto auto 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-bottom: none;
+  }
+  .ui-dialog--sheet .ui-dialog__inner {
+    max-height: 80dvh;
+  }
+  .ui-dialog--sheet .ui-dialog__body {
+    padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+  }
+  .ui-dialog--sheet .ui-dialog__head {
+    padding: var(--space-3) var(--space-4);
   }
 }

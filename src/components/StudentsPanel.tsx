@@ -252,7 +252,7 @@ export default function StudentsPanel({
         >
           {copied ? 'Copied' : 'Copy comment'}
         </Button>
-        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+        <span className="muted section--keys" style={{ fontSize: 'var(--text-xs)' }}>
           <kbd>{MOD_LABEL}</kbd> <kbd>⇧</kbd> <kbd>C</kbd>
         </span>
       </Toolbar>
@@ -264,7 +264,9 @@ export default function StudentsPanel({
       <aside className="roster">
         <div className="roster__head">
           <div className="roster__title">
-            <h2 className="truncate">{klass.name}</h2>
+            <h2 className="truncate" title={klass.name}>
+              Roster
+            </h2>
             <Button variant="primary" size="sm" icon="plus" onClick={onAddStudent} title="Add a student (n)">
               Add
             </Button>
@@ -364,8 +366,11 @@ export default function StudentsPanel({
                 </Button>
               }
             >
-              Pick someone from the roster, or add your first student. Press <kbd>n</kbd> anywhere to
-              start a new one.
+              Pick someone from the roster, or add your first student.
+              <span className="section--keys">
+                {' '}
+                Press <kbd>n</kbd> anywhere to start a new one.
+              </span>
             </EmptyState>
           </Card>
         ) : (
@@ -447,7 +452,7 @@ export default function StudentsPanel({
                 <Card>
                   <div className="section__head">
                     <h3>Ratings</h3>
-                    <span className="hint" style={{ fontSize: 'var(--text-xs)' }}>
+                    <span className="hint section--keys" style={{ fontSize: 'var(--text-xs)' }}>
                       <kbd>1</kbd>–<kbd>4</kbd> set · <kbd>0</kbd> clear · <kbd>a</kbd> next wording
                     </span>
                   </div>
@@ -574,8 +579,12 @@ export default function StudentsPanel({
                   ) : (
                     <>
                       <p className="hint" style={{ marginBottom: 'var(--space-3)' }}>
-                        Move a sentence with the arrows, or <kbd>{MOD_LABEL}</kbd> + <kbd>↑</kbd> /{' '}
-                        <kbd>↓</kbd> while one is focused. The personal note always goes last.
+                        Move a sentence with the arrows
+                        <span className="section--keys">
+                          , or <kbd>{MOD_LABEL}</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> while one is
+                          focused
+                        </span>
+                        . The personal note always goes last.
                       </p>
                       <ol className="order-list">
                         {ordered.map((cat, i) => (

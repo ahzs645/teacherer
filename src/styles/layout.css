@@ -206,7 +206,7 @@
 .topbar__class select {
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
-  max-width: 16rem;
+  max-width: 22rem;
   background: var(--surface-inset);
   border-color: transparent;
   padding-block: 0.35rem;
@@ -490,19 +490,39 @@
   }
   .topbar__class {
     flex: 1 1 auto;
+    min-width: 0;
   }
   .topbar__class select {
     max-width: none;
   }
+  /* the word costs more width than it carries; the dot still says it, and the
+   * label stays in the accessible name */
+  .save-chip__text {
+    display: none;
+  }
   .content {
     padding: var(--space-4) var(--space-3);
-    padding-bottom: calc(var(--tabbar-h) + var(--space-8) + env(safe-area-inset-bottom));
-  }
-  .app-footer {
-    padding: var(--space-4) var(--space-3);
     padding-bottom: calc(var(--tabbar-h) + var(--space-6) + env(safe-area-inset-bottom));
+  }
+  /* every word of it is either in the top bar or in Help, and it costs a
+   * screenful of thumb-reach above the tab bar */
+  .app-footer {
+    display: none;
   }
   .page-head {
     margin-bottom: var(--space-4);
   }
 }
+
+/* ============================================================================
+ * Keyboard-only furniture
+ *
+ * Chord hints, "type 1-4", modifier legends: real help at a desk, dead weight
+ * (and a lie) on a phone. Hidden where there is no keyboard to press.
+ * ========================================================================= */
+@media (hover: none) and (pointer: coarse) {
+  .section--keys {
+    display: none;
+  }
+}
+

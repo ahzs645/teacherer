@@ -449,14 +449,32 @@
   font-style: italic;
 }
 
-/* three panes once there is room for them */
-@media (min-width: 1400px) {
+/*
+ * Three panes as soon as they fit. The comment is the thing being written, so
+ * it earns its column before the ratings earn a second one: below this the
+ * ratings sit two-up and the comment ends up a screen and a half down the page,
+ * which is exactly where you do not want it.
+ */
+@media (min-width: 1200px) {
   .editor__cols {
-    grid-template-columns: minmax(0, 1fr) 23rem;
+    grid-template-columns: minmax(0, 1fr) 20rem;
   }
   .editor__aside {
     position: sticky;
     top: calc(var(--topbar-h) + var(--space-4));
+  }
+}
+
+@media (min-width: 1400px) {
+  .editor__cols {
+    grid-template-columns: minmax(0, 1fr) 23rem;
+  }
+}
+
+/* the roster gives up width first: the comment column matters more */
+@media (min-width: 1200px) and (max-width: 1399px) {
+  .students {
+    grid-template-columns: minmax(12rem, 14rem) minmax(0, 1fr);
   }
 }
 
@@ -488,14 +506,28 @@
   max-height: calc(100dvh - var(--topbar-h) - 13rem);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  background-color: var(--surface);
   box-shadow: var(--shadow-xs);
+  /*
+   * "There is more to the right." Two layers: a shadow pinned to the box
+   * (`scroll`) and an opaque cover pinned to the content (`local`). Scrolled to
+   * the end — or with nothing to scroll — the cover lands on the shadow and
+   * hides it, so the cue only ever appears when it is true.
+   */
+  background-image:
+    linear-gradient(var(--surface), var(--surface)),
+    linear-gradient(to left, color-mix(in srgb, var(--fg) 13%, transparent), transparent);
+  background-position: right center;
+  background-size: 2rem 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, scroll;
 }
 
 .mark-grid {
   /* one width for every category column; the heading text wraps into it
    * rather than stretching the table out sideways */
   --grid-col: 7rem;
+  --grid-name-w: 11rem;
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--text-sm);
@@ -526,7 +558,7 @@
 .grid-corner {
   left: 0;
   z-index: 4;
-  min-width: 11rem;
+  min-width: var(--grid-name-w);
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
@@ -539,6 +571,12 @@
   display: block;
   width: var(--grid-col);
   white-space: normal;
+  /* break between words; `anywhere` chops "Knowledg / e" even when the word
+   * would have fitted on a line of its own */
+  overflow-wrap: break-word;
+}
+/* the competency eyebrow is secondary, so it may break rather than overflow */
+.grid-cat__group {
   overflow-wrap: anywhere;
 }
 .grid-cat__group {
@@ -567,7 +605,8 @@
   background: var(--surface);
   text-align: left;
   font-weight: var(--weight-normal);
-  min-width: 11rem;
+  min-width: var(--grid-name-w);
+  max-width: var(--grid-name-w);
   box-shadow: inset -1px 0 0 var(--border-subtle);
 }
 .grid-name-btn {
@@ -624,6 +663,54 @@
   background: var(--brand-soft);
 }
 
+/* ---- the touch cell editor ---- */
+.cell-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.cell-picker__cat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+.cell-picker__cat b {
+  font-size: var(--text-md);
+}
+.cell-picker__levels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+/* named levels ("Practice", "Check work"…) need the width of a whole row */
+.cell-picker__levels[data-labelled='true'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.cell-picker__levels .lvl-toggle {
+  min-height: 3rem;
+  font-size: var(--text-base);
+}
+.cell-picker__say {
+  margin: 0;
+  font-family: var(--font-reading);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-muted);
+  background: var(--surface-inset);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.cell-picker__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cell-picker__foot .ui-btn--primary {
+  margin-left: auto;
+}
+
 /* ==========================================================================
  * Comment bank
  * ======================================================================== */
@@ -656,15 +743,17 @@
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
 }
-.bank-cat__name {
+/* qualified with the element: bare `.bank-cat__name` loses to the
+ * `input[type='text']` block in base.css, which is more specific */
+input.bank-cat__name {
   flex: 1 1 12rem;
   min-width: 0;
   font-weight: var(--weight-semibold);
   background: transparent;
   border-color: transparent;
 }
-.bank-cat__name:hover,
-.bank-cat__name:focus-visible {
+input.bank-cat__name:hover,
+input.bank-cat__name:focus-visible {
   background: var(--surface);
   border-color: var(--border-strong);
 }
@@ -1026,8 +1115,10 @@
     position: static;
     max-height: none;
   }
+  /* the roster is the only thing on screen in this range, so let it use the
+   * screen instead of stopping at 22rem above an acre of nothing */
   .roster__list {
-    max-height: 22rem;
+    max-height: max(18rem, calc(100dvh - var(--topbar-h) - 16rem));
   }
   /* one pane at a time: the roster, or the student picked from it */
   .students[data-pane='editor'] .roster {
@@ -1039,8 +1130,21 @@
   .back-to-roster {
     display: inline-flex;
   }
+  /*
+   * The header row is sticky against this box, so the box has to be the thing
+   * that scrolls: with `max-height: none` you lose the category names the
+   * moment the page scrolls, and a column of bare 1s and 4s means nothing.
+   */
   .grid-wrap {
-    max-height: none;
+    max-height: calc(100dvh - var(--topbar-h) - 11rem);
+  }
+  /* the comment is what you are writing — on one column it goes first */
+  .editor__cols {
+    display: flex;
+    flex-direction: column;
+  }
+  .editor__aside {
+    order: -1;
   }
 }
 
@@ -1071,8 +1175,47 @@
   .bank-cat__actions {
     margin-left: 0;
   }
+  .bank-cat__head {
+    gap: var(--space-1);
+    padding: var(--space-2);
+  }
+  .bank-cat__summary {
+    padding: 0 var(--space-2) var(--space-2);
+  }
   .bank-levels,
   .rating-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* a wrapped toolbar leaves its divider dangling at the end of a line */
+  .ui-toolbar__divider {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+ * Phone grid
+ *
+ * At 360px the 11rem name column was over half the width and left room for one
+ * category. Names ellipsis sooner so at least three columns are in view.
+ * ======================================================================== */
+@media (max-width: 720px) {
+  .mark-grid {
+    --grid-col: 5.25rem;
+    --grid-name-w: 7.5rem;
+    font-size: var(--text-xs);
+  }
+  /* the padding is column width the heading cannot use — trade it for text */
+  .grid-corner,
+  .grid-cat {
+    padding: var(--space-2) var(--space-1);
+  }
+  .grid-name-btn {
+    padding-inline: var(--space-2);
+  }
+  .grid-cell {
+    min-width: 3rem;
+  }
+  .grid-wrap {
+    max-height: calc(100dvh - var(--topbar-h) - var(--tabbar-h) - 9rem);
   }
 }

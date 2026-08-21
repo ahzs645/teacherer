@@ -10,6 +10,7 @@ import { makeStudent } from './lib/pronouns'
 import { copyText } from './lib/util'
 import { emptyClass } from './seedData'
 import { useTheme } from './hooks/useTheme'
+import { useMediaQuery, PHONE_QUERY } from './hooks/useMediaQuery'
 import ThemeToggle from './components/ThemeToggle'
 import StudentsPanel from './components/StudentsPanel'
 import type { Pane } from './components/StudentsPanel'
@@ -69,6 +70,8 @@ export default function App() {
   const chordRef = useRef<number>(0)
 
   const theme = useTheme()
+  // the top bar has room for the class name or a three-up theme switch, not both
+  const phone = useMediaQuery(PHONE_QUERY)
 
   const {
     offlineReady: [offlineReady],
@@ -241,7 +244,7 @@ export default function App() {
         id="class-picker"
         value={state.activeClassId}
         onChange={(e) => switchClass(e.target.value)}
-        title="Switch class"
+        title={`${klass.name} — switch class`}
       >
         {state.classes.map((c) => (
           <option key={c.id} value={c.id}>
@@ -276,7 +279,7 @@ export default function App() {
                   <Icon name={t.icon} className="nav-item__icon" size="1.15rem" />
                   <span className="nav-item__label">{t.label}</span>
                   <span className="nav-item__short">{t.short}</span>
-                  <span className="nav-item__chord" aria-hidden="true">
+                  <span className="nav-item__chord section--keys" aria-hidden="true">
                     g {t.chord}
                   </span>
                 </button>
@@ -303,16 +306,21 @@ export default function App() {
           </span>
           {classPicker}
           <div className="topbar__actions">
-            <span className="save-chip" data-status={saveStatus} title="Changes save to this device automatically">
+            <span
+              className="save-chip"
+              data-status={saveStatus}
+              title="Changes save to this device automatically"
+            >
               <span className="save-chip__dot" aria-hidden="true" />
-              <span>{SAVE_LABEL[saveStatus]}</span>
+              <span className="save-chip__text">{SAVE_LABEL[saveStatus]}</span>
+              <span className="sr-only">{SAVE_LABEL[saveStatus]}</span>
             </span>
             {offline && (
               <Badge tone="success" className="topbar__offline" title="This app works with no connection">
                 Offline ready
               </Badge>
             )}
-            <ThemeToggle theme={theme} />
+            <ThemeToggle theme={theme} compact={phone} />
             <Button
               variant="ghost"
               icon="help"

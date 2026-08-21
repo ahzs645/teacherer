@@ -118,11 +118,12 @@ export default function HelpDialog({ open, tab, setTab, onClose }: Props) {
             <dl>
               <Entry term="Students">
                 One student at a time: their name and pronouns, a level for each category, the order
-                their sentences come out in, and the finished comment beside it as you work.
+                their sentences come out in, and the finished comment updating as you work — beside
+                the ratings on a wide screen, above them on a narrow one.
               </Entry>
               <Entry term="Mark grid">
                 The whole class at once — students down the side, categories across the top. This is
-                the fast way in: click a cell and type.
+                the fast way in: click a cell and type, or tap one on a touch screen and pick.
               </Entry>
               <Entry term="Comment bank">
                 The sentences themselves. Every category has four levels, and every level holds a
@@ -300,8 +301,9 @@ export default function HelpDialog({ open, tab, setTab, onClose }: Props) {
             <dl>
               <Entry term="The grid">
                 Students down the side, categories across the top. Click a cell and type — it is the
-                fast way to rate a whole class one column at a time. The colour of a cell tracks the
-                level, so a column reads at a glance.
+                fast way to rate a whole class one column at a time. On a touch screen a tap opens a
+                picker instead, with arrows to carry on down the same column. The colour of a cell
+                tracks the level, so a column reads at a glance.
               </Entry>
               <Entry term="3">Level 3, in that level&apos;s default wording.</Entry>
               <Entry term="3b">
