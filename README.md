@@ -16,8 +16,8 @@ Teacherer does the same thing, without the 247 `#N/A`s and the link to a file on
 ## What's in it
 
 - **Classes** — each class keeps its own roster *and* its own comment bank, the way each tab
-  did in the workbook. Switch from the header; add, rename, duplicate or delete on
-  *Reports & Export*.
+  did in the workbook. Switch from the top bar; add, rename, duplicate or delete on
+  *Classes & data*.
 - **Comment Bank** — the template's comments ship built in. Every level holds a **pool of
   interchangeable phrasings**: the first is the default, the rest are alternates you can pick
   per student. Add, remove, promote and edit them; group categories by competency; mark a
@@ -31,20 +31,26 @@ Teacherer does the same thing, without the 247 `#N/A`s and the link to a file on
   `CONCAT` in the spreadsheet. It travels in the exported `Comment order` column.
 - **Grid** — every student down the side, every category across the top. Type a digit, fill
   a column down, or paste a column straight out of your gradebook.
-- **Reports & Export** — every student's comment on one page; copy individually or all at
-  once, print, or download as **.xlsx** (comments + ratings + bank, for every class) or .csv.
-- **Import** — a class roster from any .xlsx/.csv with a `Name` column, **the ratings sheet
-  this app exports** (so marks round-trip), a comment bank, or a whole-app JSON backup.
+- **Reports** — every student's comment on one page, with a written/missing filter and a
+  count of how far through the class you are; copy individually or all at once, print, or
+  download as **.xlsx** (comments + ratings + bank, for every class) or .csv.
+- **Classes & data** — the class list, imports, and backup. Import a roster from any
+  .xlsx/.csv with a `Name` column, **the ratings sheet this app exports** (so marks
+  round-trip), or a whole-app JSON backup.
+- **Light, dark and system** — the switch in the top bar. *System* follows the device and
+  changes with it, and is the default; light and dark pin the palette for this browser.
+  <kbd>t</kbd> flips between them from anywhere.
 
 ## Keyboard
 
-Press <kbd>?</kbd> anywhere for the full list, or the <kbd>?</kbd> button in the header for a
+Press <kbd>?</kbd> anywhere for the full list, or the <kbd>?</kbd> button in the top bar for a
 plain-language guide to what every option does. The essentials:
 
 | Keys | What |
 |---|---|
-| <kbd>g</kbd> then <kbd>s</kbd> / <kbd>g</kbd> / <kbd>b</kbd> / <kbd>r</kbd> | Students · Grid · Comment Bank · Reports |
-| <kbd>Ctrl/⌘</kbd> + <kbd>1…4</kbd> | the same four tabs |
+| <kbd>g</kbd> then <kbd>s</kbd> / <kbd>g</kbd> / <kbd>b</kbd> / <kbd>r</kbd> / <kbd>d</kbd> | Students · Grid · Comment bank · Reports · Classes & data |
+| <kbd>Ctrl/⌘</kbd> + <kbd>1…5</kbd> | the same five sections |
+| <kbd>t</kbd> | flip between light and dark |
 | <kbd>/</kbd> | search the roster |
 | <kbd>Alt</kbd> + <kbd>↑</kbd>/<kbd>↓</kbd> | previous / next student |
 | <kbd>n</kbd> | add a student |
@@ -65,7 +71,7 @@ data never leaves your device. The app is a PWA: after the first visit it works 
 offline and can be installed from the browser's "Install app" prompt.
 
 > Because data lives in the browser, clearing site data erases it — use
-> **Reports & Export → Download backup (.json)** for a safety copy.
+> **Classes & data → Download backup (.json)** for a safety copy.
 
 ## Placeholders
 
@@ -107,6 +113,39 @@ push to `main` (or manually via *Run workflow*). One-time setup: in the repo's
 **Settings → Pages**, set **Source** to **GitHub Actions**. The app then lives at
 `https://<user>.github.io/teacherer/`.
 
+## Design system
+
+The UI is built from a small set of primitives over a two-layer token system. No CSS
+framework and no runtime CSS-in-JS — the whole stylesheet is ~9 kB gzipped.
+
+```
+src/styles/
+  tokens.css    primitives (colour ramps, spacing, type, radii, motion)
+                + semantic tokens (--bg, --surface, --fg, --brand …) per theme
+  base.css      reset, document defaults, native form controls, one focus ring
+  ui.css        the visual half of src/components/ui/*
+  layout.css    the app shell: rail, top bar, content column, mobile tab bar
+  panels.css    the five screens
+  print.css     comments only, forced to the light palette
+src/components/ui/
+  Button  Card  Field/Checkbox  Badge/LevelChip  SegmentedControl
+  Toolbar  Disclosure  EmptyState  Modal  Icon
+```
+
+**Primitives are raw values and never change between themes; semantic tokens name a role and
+are the only thing a theme re-points.** Adding a theme therefore means re-declaring one block
+in `tokens.css`, not touching a component rule.
+
+Theming lives in `src/lib/theme.ts` and `src/hooks/useTheme.ts`. `system` clears
+`data-theme` so the `prefers-color-scheme` block in `tokens.css` is the single definition of
+what "system" means; `light`/`dark` set the attribute and win over it. An inline script in
+`index.html` paints the stored choice before first paint, so a dark-mode user never gets a
+white flash — it mirrors the storage key and the two `theme-color` values, so keep the three
+in step.
+
+Every foreground/background pair in both themes meets WCAG AA (4.5:1 for text, 3:1 for
+secondary labels). `Icon` is a hand-rolled 24×24 stroked set rather than an icon dependency.
+
 ## Tech notes
 
 - React 19 + TypeScript (strict) + Vite 8; state is a single typed `AppState` in
@@ -126,4 +165,4 @@ push to `main` (or manually via *Run workflow*). One-time setup: in the repo's
 The workbook has empty scaffolding for `US3`, `US4`, `COMM4` and `CR1`–`CR4`, and rates
 `RA1`–`RA3` against comment tables that live in a different file
 (`Competency_comment_generator_2023.xlsx`). None of those have text in the template, so none
-are seeded — add them from the Comment Bank tab if you fill them in.
+are seeded — add them from the Comment bank tab if you fill them in.

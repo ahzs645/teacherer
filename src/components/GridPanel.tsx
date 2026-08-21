@@ -9,7 +9,6 @@ import { pickText } from '../lib/generate'
 import { MOD_LABEL, mod } from '../lib/keys'
 import {
   cycleVariant,
-  formatCell,
   isLevel,
   parseCell,
   parsePick,
@@ -17,6 +16,7 @@ import {
   sortPicks,
   variantCount,
 } from '../lib/ratings'
+import { Card, Disclosure, EmptyState, LevelChip } from './ui'
 
 interface Props {
   klass: Klass
@@ -262,43 +262,85 @@ export default function GridPanel({ klass, updateClass, students, onOpenStudent 
     applyEdits(edits)
   }
 
+  const header = (
+    <div className="page-head">
+      <div className="page-head__text">
+        <h2>Mark grid</h2>
+        <p className="hint">
+          {klass.name} · {students.length} student{students.length === 1 ? '' : 's'} ×{' '}
+          {klass.categories.length} categor{klass.categories.length === 1 ? 'y' : 'ies'}
+        </p>
+      </div>
+    </div>
+  )
+
   if (!klass.categories.length) {
     return (
-      <p className="empty-note">
-        The comment bank for this class is empty. Add a category or two on the Comment Bank tab and
-        each one becomes a column here.
-      </p>
+      <>
+        {header}
+        <Card padding="none">
+          <EmptyState icon="bank" title="No categories to grid yet">
+            The comment bank for this class is empty. Add a category or two on the Comment bank tab
+            and each one becomes a column here.
+          </EmptyState>
+        </Card>
+      </>
     )
   }
 
   if (!students.length) {
     return (
-      <p className="empty-note">
-        No students to show. Add them on the Students tab — or clear the search if you are filtering
-        the roster.
-      </p>
+      <>
+        {header}
+        <Card padding="none">
+          <EmptyState icon="students" title="No students to show">
+            Add them on the Students tab — or clear the search if you are filtering the roster.
+          </EmptyState>
+        </Card>
+      </>
     )
   }
 
   return (
     <>
-      <p className="hint grid-legend">
-        Click a cell, then type <kbd>1</kbd>–<kbd>4</kbd> to set the level; on single-choice columns
-        the grid drops to the next student. <kbd>0</kbd> clears a cell, <kbd>a</kbd> swaps to another
-        way of saying the same thing (<kbd>⇧A</kbd> goes back), <kbd>{MOD_LABEL}</kbd>+<kbd>D</kbd>{' '}
-        copies the cell above, <kbd>{MOD_LABEL}</kbd>+<kbd>⇧</kbd>+<kbd>D</kbd> fills the rest of the
-        column, and <kbd>Enter</kbd> opens that student. You can also paste a column of levels
-        straight from your gradebook.
-      </p>
+      {header}
 
-      <div className="grid-wrap" ref={wrapRef} onPaste={onPaste}>
+      <div className="grid-legend">
+        <span className="grid-legend__label">Levels</span>
+        <span className="grid-legend__scale">
+          {LEVELS.map((lvl) => (
+            <LevelChip key={lvl} level={lvl} />
+          ))}
+        </span>
+        <span className="hint" style={{ fontSize: 'var(--text-xs)' }}>
+          Click a cell, then type <kbd>1</kbd>–<kbd>4</kbd>.
+        </span>
+      </div>
+
+      <Disclosure summary="Everything the grid can do from the keyboard">
+        <p className="hint" style={{ margin: 0 }}>
+          <kbd>1</kbd>–<kbd>4</kbd> sets the level; on single-choice columns the grid drops to the
+          next student. <kbd>0</kbd> clears a cell, <kbd>a</kbd> swaps to another way of saying the
+          same thing (<kbd>⇧A</kbd> goes back), <kbd>{MOD_LABEL}</kbd>+<kbd>D</kbd> copies the cell
+          above, <kbd>{MOD_LABEL}</kbd>+<kbd>⇧</kbd>+<kbd>D</kbd> fills the rest of the column, and{' '}
+          <kbd>Enter</kbd> opens that student. You can also paste a column of levels straight from
+          your gradebook.
+        </p>
+      </Disclosure>
+
+      <div
+        className="grid-wrap"
+        ref={wrapRef}
+        onPaste={onPaste}
+        style={{ marginTop: 'var(--space-3)' }}
+      >
         <table className="mark-grid" role="grid">
           <thead>
             <tr>
               <th scope="col" className="grid-corner">
                 Student
               </th>
-              {klass.categories.map((cat) => (
+              {klass.categories.map((cat, i) => (
                 <th
                   key={cat.id}
                   scope="col"
@@ -306,8 +348,11 @@ export default function GridPanel({ klass, updateClass, students, onOpenStudent 
                   data-excluded={cat.include ? undefined : 'true'}
                   title={headTitle(cat)}
                 >
-                  <span className="grid-cat-group">{cat.group}</span>
-                  <span className="grid-cat-name">{cat.name}</span>
+                  {/* the group is a run heading: print it once, where it changes */}
+                  {cat.group && cat.group !== klass.categories[i - 1]?.group && (
+                    <span className="grid-cat__group">{cat.group}</span>
+                  )}
+                  <span className="grid-cat__name">{cat.name}</span>
                 </th>
               ))}
             </tr>
@@ -322,11 +367,12 @@ export default function GridPanel({ klass, updateClass, students, onOpenStudent 
                     title={`Open ${student.name || 'this student'} on the Students tab`}
                     onClick={() => onOpenStudent(student.id)}
                   >
-                    {student.name || '(unnamed)'}
+                    <span>{student.name || 'Unnamed student'}</span>
                   </button>
                 </th>
                 {klass.categories.map((cat, c) => {
                   const picks = student.ratings[cat.id] ?? []
+                  const marks = sortPicks(picks)
                   return (
                     <td
                       key={cat.id}
@@ -335,14 +381,24 @@ export default function GridPanel({ klass, updateClass, students, onOpenStudent 
                       data-row={r}
                       data-col={c}
                       data-empty={picks.length ? undefined : 'true'}
-                      data-multi={cat.multi ? 'true' : undefined}
                       data-excluded={cat.include ? undefined : 'true'}
                       title={cellTitle(cat, picks)}
                       tabIndex={r === row && c === col ? 0 : -1}
                       onFocus={() => goTo(r, c)}
                       onKeyDown={(e) => onCellKeyDown(e, r, c)}
                     >
-                      {formatCell(picks) || '—'}
+                      <span className="grid-cell__marks">
+                        {marks.length
+                          ? marks.map((code) => {
+                              const p = parsePick(code)
+                              return p ? (
+                                <LevelChip key={code} level={p.level}>
+                                  {code}
+                                </LevelChip>
+                              ) : null
+                            })
+                          : '—'}
+                      </span>
                     </td>
                   )
                 })}
