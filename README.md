@@ -30,7 +30,8 @@ Teacherer does the same thing, without the 247 `#N/A`s and the link to a file on
   can have their sentences stitched in a different order, the way you could rewrite one row's
   `CONCAT` in the spreadsheet. It travels in the exported `Comment order` column.
 - **Grid** — every student down the side, every category across the top. Type a digit, fill
-  a column down, or paste a column straight out of your gradebook.
+  a column down, or paste a column straight out of your gradebook. On a touch screen a tap
+  opens a picker instead, with arrows to carry on down the same column.
 - **Reports** — every student's comment on one page, with a written/missing filter and a
   count of how far through the class you are; copy individually or all at once, print, or
   download as **.xlsx** (comments + ratings + bank, for every class) or .csv.
@@ -62,7 +63,20 @@ plain-language guide to what every option does. The essentials:
 | <kbd>Ctrl/⌘</kbd> + <kbd>↑</kbd>/<kbd>↓</kbd> | move a sentence in the Order list |
 | <kbd>Ctrl/⌘</kbd> + <kbd>⇧</kbd> + <kbd>C</kbd> | copy the current student's comment |
 
-Bare letters only fire when you are not typing in a field.
+Bare letters only fire when you are not typing in a field. Shortcut hints are hidden on
+touch devices, where there is no keyboard to press them on; the Help dialog still lists them.
+
+## On a phone
+
+The same five sections, reachable from a bottom tab bar inside the thumb arc. What differs:
+
+- The **grid** keeps its category headings pinned while it scrolls, narrows the name column so
+  three or four categories fit, and fades its right edge while there is more to swipe to.
+  Tapping a cell opens the level picker as a bottom sheet, with the wording it will produce.
+- The **student editor** puts the generated comment *above* the ratings rather than beside
+  them, so the thing you are writing is never a screen and a half away.
+- The top bar drops to one line of essentials: the class, a save dot, one theme button that
+  cycles light → system → dark, and Help.
 
 ## Local-first & offline
 
@@ -131,6 +145,27 @@ src/components/ui/
   Button  Card  Field/Checkbox  Badge/LevelChip  SegmentedControl
   Toolbar  Disclosure  EmptyState  Modal  Icon
 ```
+
+Breakpoints, and what each one is for:
+
+| Width | What changes |
+|---|---|
+| ≥ 1400px | roster + ratings + comment, all three at full width |
+| ≥ 1200px | the same three columns, roster and comment narrower |
+| ≤ 1080px | the sidebar drops to an icon rail |
+| ≤ 900px | one pane at a time — roster *or* student; the comment goes above the ratings |
+| ≤ 720px | sidebar out, bottom tab bar in; the grid re-tunes its column widths |
+| ≤ 620px | single-column rating and bank grids; dialogs become bottom sheets |
+
+`(hover: none) and (pointer: coarse)` is a separate axis from width: it hides keyboard-only
+hints (`.section--keys`), enlarges hit targets, and switches the grid from type-a-digit to
+tap-and-pick. Anything gated on it needs a visible on-screen equivalent — a phone user must
+never be told to press a key. Width belongs in CSS; where the *markup* has to differ,
+`src/hooks/useMediaQuery.ts` exposes the same queries to components.
+
+Note the specificity floor: `base.css` styles native controls as `input[type='text']` (0-1-1),
+so a bare class like `.bank-cat__name` (0-1-0) cannot override their border or background —
+qualify it (`input.bank-cat__name`) or it silently loses.
 
 **Primitives are raw values and never change between themes; semantic tokens name a role and
 are the only thing a theme re-points.** Adding a theme therefore means re-declaring one block

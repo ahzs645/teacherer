@@ -3,9 +3,9 @@ import type {
   ClipboardEvent as ReactClipboardEvent,
   KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
-import type { Category, Klass, PickCode, Student } from '../types'
+import type { Category, Klass, Level, PickCode, Student } from '../types'
 import { LEVELS } from '../types'
-import { pickText } from '../lib/generate'
+import { pickText, substitutePlaceholders } from '../lib/generate'
 import { MOD_LABEL, mod } from '../lib/keys'
 import {
   cycleVariant,
@@ -16,7 +16,8 @@ import {
   sortPicks,
   variantCount,
 } from '../lib/ratings'
-import { Card, Disclosure, EmptyState, LevelChip } from './ui'
+import { useMediaQuery, TOUCH_QUERY } from '../hooks/useMediaQuery'
+import { Badge, Button, Card, Disclosure, EmptyState, LevelChip, Modal } from './ui'
 
 interface Props {
   klass: Klass
@@ -88,6 +89,12 @@ function headTitle(cat: Category): string {
   return lines.join('\n')
 }
 
+/** What a level is called in this column: its own label if it has one. */
+function levelName(cat: Category, lvl: Level): string {
+  const label = cat.levelLabels?.[lvl]
+  return label ? `${lvl} · ${label}` : lvl
+}
+
 /** Cell tooltip: what this rating will actually say in the comment. */
 function cellTitle(cat: Category, picks: PickCode[]): string {
   if (!picks.length) return `${cat.name} · not rated`
@@ -99,7 +106,11 @@ function cellTitle(cat: Category, picks: PickCode[]): string {
 
 export default function GridPanel({ klass, updateClass, students, onOpenStudent }: Props) {
   const [focus, setFocus] = useState<Spot>({ row: 0, col: 0 })
+  /** Which cell the touch picker is open on; null on a pointer with a keyboard. */
+  const [picking, setPicking] = useState<Spot | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+  // there is no "then type 1-4" on a phone, so a tap has to open something
+  const touch = useMediaQuery(TOUCH_QUERY)
 
   const lastRow = students.length - 1
   const lastCol = klass.categories.length - 1
@@ -121,6 +132,12 @@ export default function GridPanel({ klass, updateClass, students, onOpenStudent 
   const goTo = (r: number, c: number) => {
     const next = { row: clamp(r, lastRow), col: clamp(c, lastCol) }
     setFocus((prev) => (prev.row === next.row && prev.col === next.col ? prev : next))
+  }
+
+  /** Tap on a phone opens the picker; a mouse just focuses, ready for 1-4. */
+  const onCellClick = (r: number, c: number) => {
+    goTo(r, c)
+    if (touch) setPicking({ row: r, col: c })
   }
 
   /** Write a batch of cells in one pass, so filling a column is a single update. */
@@ -301,6 +318,97 @@ export default function GridPanel({ klass, updateClass, students, onOpenStudent 
     )
   }
 
+  const pickCat = picking ? klass.categories[picking.col] : null
+  const pickStudent = picking ? students[picking.row] : null
+  const pickPicks = picking ? picksAt(picking.row, picking.col) : []
+
+  /**
+   * The touch equivalent of "click a cell, then type": one level per row so
+   * the labels fit, and prev/next so a whole column can be marked without
+   * closing it between students.
+   */
+  const picker = picking && pickCat && pickStudent && (
+    <Modal
+      open
+      className="ui-dialog--sheet"
+      onClose={() => setPicking(null)}
+      title={<span className="truncate">{pickStudent.name || 'Unnamed student'}</span>}
+    >
+      <div className="cell-picker">
+        <p className="cell-picker__cat">
+          {pickCat.group && <span className="eyebrow">{pickCat.group}</span>}
+          <b>{pickCat.name}</b>
+          {pickCat.multi && (
+            <Badge tone="neutral" title="More than one level can be chosen here">
+              multi
+            </Badge>
+          )}
+        </p>
+
+        <div
+          className="cell-picker__levels"
+          data-labelled={pickCat.levelLabels ? 'true' : undefined}
+          role="group"
+          aria-label={pickCat.name}
+        >
+          {LEVELS.map((lvl) => (
+            <button
+              key={lvl}
+              type="button"
+              className="lvl-toggle"
+              data-level={lvl}
+              aria-pressed={pickPicks.some((code) => parsePick(code)?.level === lvl)}
+              onClick={() =>
+                writeCell(picking.row, picking.col, setLevel(pickCat, pickPicks, lvl))
+              }
+            >
+              {levelName(pickCat, lvl)}
+            </button>
+          ))}
+        </div>
+
+        {!!pickPicks.length && (
+          <p className="cell-picker__say">
+            {substitutePlaceholders(
+              sortPicks(pickPicks)
+                .map((code) => pickText(pickCat, code) || '(no wording written yet)')
+                .join(' '),
+              pickStudent,
+            )}
+          </p>
+        )}
+
+        <div className="cell-picker__foot">
+          <Button
+            variant="ghost"
+            icon="close"
+            disabled={!pickPicks.length}
+            onClick={() => writeCell(picking.row, picking.col, [])}
+          >
+            Clear
+          </Button>
+          <Button
+            variant="ghost"
+            icon="chevronLeft"
+            aria-label="Previous student"
+            disabled={picking.row === 0}
+            onClick={() => setPicking({ row: picking.row - 1, col: picking.col })}
+          />
+          <Button
+            variant="ghost"
+            icon="chevronRight"
+            aria-label="Next student"
+            disabled={picking.row === lastRow}
+            onClick={() => setPicking({ row: picking.row + 1, col: picking.col })}
+          />
+          <Button variant="primary" onClick={() => setPicking(null)}>
+            Done
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+
   return (
     <>
       {header}
@@ -313,11 +421,20 @@ export default function GridPanel({ klass, updateClass, students, onOpenStudent 
           ))}
         </span>
         <span className="hint" style={{ fontSize: 'var(--text-xs)' }}>
-          Click a cell, then type <kbd>1</kbd>–<kbd>4</kbd>.
+          {touch ? (
+            'Tap a cell to set its level. Swipe the grid sideways for more categories.'
+          ) : (
+            <>
+              Click a cell, then type <kbd>1</kbd>–<kbd>4</kbd>.
+            </>
+          )}
         </span>
       </div>
 
-      <Disclosure summary="Everything the grid can do from the keyboard">
+      <Disclosure
+        className="section--keys"
+        summary="Everything the grid can do from the keyboard"
+      >
         <p className="hint" style={{ margin: 0 }}>
           <kbd>1</kbd>–<kbd>4</kbd> sets the level; on single-choice columns the grid drops to the
           next student. <kbd>0</kbd> clears a cell, <kbd>a</kbd> swaps to another way of saying the
@@ -385,6 +502,7 @@ export default function GridPanel({ klass, updateClass, students, onOpenStudent 
                       title={cellTitle(cat, picks)}
                       tabIndex={r === row && c === col ? 0 : -1}
                       onFocus={() => goTo(r, c)}
+                      onClick={() => onCellClick(r, c)}
                       onKeyDown={(e) => onCellKeyDown(e, r, c)}
                     >
                       <span className="grid-cell__marks">
@@ -407,6 +525,8 @@ export default function GridPanel({ klass, updateClass, students, onOpenStudent 
           </tbody>
         </table>
       </div>
+
+      {picker}
     </>
   )
 }
