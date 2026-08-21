@@ -1,0 +1,61 @@
+/* ============================================================================
+ * Print: the comments, and nothing else.
+ * Forced to the light palette — a dark theme on paper is a cartridge fire.
+ * ========================================================================= */
+@media print {
+  :root,
+  :root[data-theme='dark'],
+  :root[data-theme='light'] {
+    color-scheme: light;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-inset: #ffffff;
+    --fg: #000000;
+    --fg-strong: #000000;
+    --fg-muted: #333333;
+    --fg-subtle: #555555;
+    --border: #cccccc;
+    --border-subtle: #dddddd;
+  }
+
+  .sidebar,
+  .tabbar,
+  .topbar,
+  .app-footer,
+  .ui-toolbar,
+  .stat-row,
+  .hint,
+  .page-head .ui-toolbar,
+  .report-card__tools,
+  .ui-disclosure,
+  .section--no-print {
+    display: none !important;
+  }
+
+  .app {
+    display: block;
+  }
+
+  .content {
+    padding: 0;
+  }
+
+  .content__inner {
+    width: 100%;
+    animation: none;
+  }
+
+  .report-list {
+    display: block;
+  }
+
+  .report-card {
+    border: none;
+    border-bottom: 1px solid #ccc;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0.5cm 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

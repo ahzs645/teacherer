@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#1e5c8a" />
+    <meta name="theme-color" content="#ffffff" />
     <meta
       name="description"
       content="Local-first report card comment generator for teachers. Your data never leaves your device."
@@ -12,6 +12,31 @@
     <link rel="icon" href="icons/icon-192.png" type="image/png" />
     <link rel="apple-touch-icon" href="icons/icon-192.png" />
     <title>Teacherer – Report Comment Tool</title>
+    <script>
+      /* Paint the stored theme before first paint, so a dark-mode user never
+       * gets a white flash on load. Mirrors src/lib/theme.ts — keep the key
+       * and the theme-colour values in step with it. */
+      ;(function () {
+        var root = document.documentElement
+        root.classList.add('theme-instant')
+        try {
+          var mode = localStorage.getItem('teacherer-theme')
+          if (mode === 'light' || mode === 'dark') root.setAttribute('data-theme', mode)
+          var dark =
+            mode === 'dark' ||
+            (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', dark ? '#161d26' : '#ffffff')
+        } catch (e) {
+          /* storage blocked: the CSS media query still gives the right palette */
+        }
+        window.addEventListener('DOMContentLoaded', function () {
+          requestAnimationFrame(function () {
+            root.classList.remove('theme-instant')
+          })
+        })
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

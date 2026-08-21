@@ -22,6 +22,17 @@ import {
 } from '../lib/ratings'
 import { MOD_LABEL, mod } from '../lib/keys'
 import { copyText } from '../lib/util'
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  FieldRow,
+  Icon,
+  Toolbar,
+  ToolbarSpacer,
+} from './ui'
 
 export type Pane = 'roster' | 'editor'
 
@@ -60,6 +71,22 @@ function levelLabel(cat: Category, lvl: Level): string {
   return label ? `${lvl} · ${label}` : `Level ${lvl}`
 }
 
+/** Up to two letters for the roster avatar; a dash while the name is blank. */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return '–'
+  if (parts.length === 1) return parts[0].slice(0, 2)
+  return parts[0][0] + parts[parts.length - 1][0]
+}
+
+/** How much of this student's comment exists yet, 0-1. */
+function completion(categories: Category[], student: Student): number {
+  const counted = categories.filter((c) => c.include)
+  if (!counted.length) return 0
+  const done = counted.filter((c) => (student.ratings[c.id]?.length ?? 0) > 0).length
+  return done / counted.length
+}
+
 export default function StudentsPanel({
   klass,
   updateClass,
@@ -92,7 +119,10 @@ export default function StudentsPanel({
   }, [focusNameToken])
 
   const patchStudent = (id: string, patch: (s: Student) => Student) => {
-    updateClass((prev) => ({ ...prev, students: prev.students.map((s) => (s.id === id ? patch(s) : s)) }))
+    updateClass((prev) => ({
+      ...prev,
+      students: prev.students.map((s) => (s.id === id ? patch(s) : s)),
+    }))
   }
 
   const deleteStudent = () => {
@@ -128,6 +158,17 @@ export default function StudentsPanel({
   }
 
   const picksOf = (cat: Category): PickCode[] => (student ? (student.ratings[cat.id] ?? []) : [])
+
+  /**
+   * Clicking a level sets it; clicking the level that is already on clears it.
+   * Multi-pick categories toggle each level independently, which setLevel
+   * already does — this only adds the same affordance to single-pick ones.
+   */
+  const toggleLevel = (cat: Category, lvl: Level) => {
+    const picks = picksOf(cat)
+    if (!cat.multi && pickForLevel(picks, lvl)) writePicks(cat.id, [])
+    else writePicks(cat.id, setLevel(cat, picks, lvl))
+  }
 
   /** The sentences this student's comment is built from, in stitching order. */
   const ordered = student ? orderedCategories(klass.categories, student) : []
@@ -173,9 +214,11 @@ export default function StudentsPanel({
     e.preventDefault()
     const i = students.findIndex((s) => s.id === selectedId)
     const next =
-      e.key === 'Home' ? 0
-      : e.key === 'End' ? students.length - 1
-      : Math.min(students.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))
+      e.key === 'Home'
+        ? 0
+        : e.key === 'End'
+          ? students.length - 1
+          : Math.min(students.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))
     const target = students[next]
     if (target) onSelect(target.id)
   }
@@ -187,313 +230,419 @@ export default function StudentsPanel({
 
   const comment = student ? generateComment(klass.categories, student) : ''
 
+  const preview = (
+    <Card className="preview-card">
+      <Toolbar>
+        <span className="eyebrow">Generated comment</span>
+        <ToolbarSpacer />
+        <span className="muted tabular" style={{ fontSize: 'var(--text-xs)' }}>
+          {comment.length} characters
+        </span>
+      </Toolbar>
+      <div className="preview">{comment}</div>
+      <Toolbar>
+        <Button
+          variant="primary"
+          icon={copied ? 'check' : 'copy'}
+          onClick={() => {
+            void copyText(comment)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+          }}
+        >
+          {copied ? 'Copied' : 'Copy comment'}
+        </Button>
+        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
+          <kbd>{MOD_LABEL}</kbd> <kbd>⇧</kbd> <kbd>C</kbd>
+        </span>
+      </Toolbar>
+    </Card>
+  )
+
   return (
-    <div className="split" data-pane={pane}>
+    <div className="students" data-pane={pane}>
       <aside className="roster">
-        <div className="roster-head">
-          <h2>{klass.name}</h2>
-          <button className="btn primary" onClick={onAddStudent} title="Add a student (n)">
-            + Add
-          </button>
+        <div className="roster__head">
+          <div className="roster__title">
+            <h2 className="truncate">{klass.name}</h2>
+            <Button variant="primary" size="sm" icon="plus" onClick={onAddStudent} title="Add a student (n)">
+              Add
+            </Button>
+          </div>
+          <div className="roster__tools">
+            <span className="roster__search">
+              <Icon name="search" size="0.95rem" />
+              <input
+                ref={searchRef}
+                type="search"
+                value={query}
+                placeholder="Search   /"
+                aria-label="Search students"
+                autoComplete="off"
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setQuery('')
+                    e.currentTarget.blur()
+                  }
+                  if (e.key === 'Enter' && students[0]) openStudent(students[0].id)
+                }}
+              />
+            </span>
+            <Button
+              size="sm"
+              aria-pressed={sortAZ}
+              title="Sort the roster A-Z"
+              onClick={() => setSortAZ(!sortAZ)}
+            >
+              A-Z
+            </Button>
+          </div>
         </div>
-        <div className="roster-tools">
-          <input
-            ref={searchRef}
-            type="search"
-            className="roster-search"
-            value={query}
-            placeholder="Search students   /"
-            aria-label="Search students"
-            autoComplete="off"
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                setQuery('')
-                e.currentTarget.blur()
-              }
-              if (e.key === 'Enter' && students[0]) openStudent(students[0].id)
-            }}
-          />
-          <button
-            className={`btn small${sortAZ ? ' pressed' : ''}`}
-            aria-pressed={sortAZ}
-            title="Sort the roster A-Z"
-            onClick={() => setSortAZ(!sortAZ)}
-          >
-            A-Z
-          </button>
-        </div>
+
         <ul
-          className="student-list"
+          className="roster__list"
           ref={listRef}
           role="listbox"
           aria-label="Class roster"
           tabIndex={students.length ? 0 : -1}
           onKeyDown={onRosterKeyDown}
         >
-          {students.map((s) => (
-            <li
-              key={s.id}
-              role="option"
-              aria-selected={s.id === selectedId}
-              className={s.id === selectedId ? 'selected' : ''}
-              onClick={() => openStudent(s.id)}
-            >
-              <span className="student-name">{s.name || '(unnamed)'}</span>
-              <span className="badge">{s.pronouns.subject}</span>
-            </li>
-          ))}
+          {students.map((s) => {
+            const done = completion(klass.categories, s)
+            return (
+              <li
+                key={s.id}
+                role="option"
+                aria-selected={s.id === selectedId}
+                className="roster-row"
+                data-complete={done >= 1 ? 'true' : undefined}
+                onClick={() => openStudent(s.id)}
+              >
+                <span className="roster-row__avatar" aria-hidden="true">
+                  {initials(s.name)}
+                </span>
+                <span className="roster-row__body">
+                  <span className="roster-row__name" data-unnamed={s.name.trim() ? undefined : 'true'}>
+                    {s.name || 'Unnamed student'}
+                  </span>
+                  <span className="roster-row__meta">{s.pronouns.subject}</span>
+                </span>
+                <span
+                  className="roster-row__progress"
+                  title={`${Math.round(done * 100)}% of the comment bank rated`}
+                >
+                  <i style={{ width: `${Math.round(done * 100)}%` }} />
+                </span>
+              </li>
+            )
+          })}
           {!students.length && (
-            <li className="roster-empty" aria-disabled="true">
+            <li role="presentation" className="hint" style={{ padding: 'var(--space-3)' }}>
               {klass.students.length ? 'No student matches that search.' : 'No students yet.'}
             </li>
           )}
         </ul>
-        <p className="hint roster-count">
-          {klass.students.length} student{klass.students.length === 1 ? '' : 's'}
-          {query.trim() && ` · ${students.length} shown`}
-        </p>
+
+        <div className="roster__foot">
+          <span>
+            {klass.students.length} student{klass.students.length === 1 ? '' : 's'}
+          </span>
+          {query.trim() && <span>{students.length} shown</span>}
+        </div>
       </aside>
 
-      <div className="student-editor">
+      <div className="editor">
         {!student ? (
-          <p className="empty-note">Add or select a student to begin.</p>
+          <Card padding="none">
+            <EmptyState
+              icon="students"
+              title="No student selected"
+              actions={
+                <Button variant="primary" icon="plus" onClick={onAddStudent}>
+                  Add a student
+                </Button>
+              }
+            >
+              Pick someone from the roster, or add your first student. Press <kbd>n</kbd> anywhere to
+              start a new one.
+            </EmptyState>
+          </Card>
         ) : (
-          <div>
-            <button className="btn back-to-roster" onClick={() => setPane('roster')}>
-              ‹ All students
-            </button>
-
-            <div className="field-row">
-              <label className="field grow">
-                <span>Student name</span>
-                <input
-                  ref={nameRef}
-                  type="text"
-                  value={student.name}
-                  placeholder="e.g. Jordan"
-                  autoComplete="off"
-                  onChange={(e) => patchStudent(student.id, (s) => ({ ...s, name: e.target.value }))}
-                />
-              </label>
-              <label className="field">
-                <span>Pronouns</span>
-                <select value={student.pronouns.preset} onChange={(e) => setPreset(e.target.value)}>
-                  <option value="she">she / her / her</option>
-                  <option value="he">he / him / his</option>
-                  <option value="they">they / them / their</option>
-                  <option value="custom">custom…</option>
-                </select>
-              </label>
-            </div>
-
-            {student.pronouns.preset === 'custom' && (
-              <div className="field-row">
-                <label className="field grow">
-                  <span>subject (she)</span>
-                  <input
-                    type="text"
-                    value={student.pronouns.subject}
-                    onChange={(e) => setPronounPart('subject', e.target.value)}
-                  />
-                </label>
-                <label className="field grow">
-                  <span>object (her)</span>
-                  <input
-                    type="text"
-                    value={student.pronouns.object}
-                    onChange={(e) => setPronounPart('object', e.target.value)}
-                  />
-                </label>
-                <label className="field grow">
-                  <span>possessive (her)</span>
-                  <input
-                    type="text"
-                    value={student.pronouns.possessive}
-                    onChange={(e) => setPronounPart('possessive', e.target.value)}
-                  />
-                </label>
-              </div>
-            )}
-
-            <h3>Ratings</h3>
-            <p className="hint">
-              Pick a level for each category you want in this comment. Categories marked ✎ are
-              switched off in the Comment Bank and stay out of the final text. With a rating focused,
-              type <kbd>1</kbd>–<kbd>4</kbd> to set it, <kbd>0</kbd> to clear, <kbd>a</kbd> for the
-              next wording.
-            </p>
-
-            {grouped(klass.categories).map(({ group, cats }) => (
-              <div key={group || 'ungrouped'} className="rating-group">
-                {group && <h4 className="group-head">{group}</h4>}
-                <div className="rating-grid">
-                  {cats.map((cat) => {
-                    const picks = picksOf(cat)
-                    const chosen = sortPicks(picks)
-                    const first = chosen.length ? parsePick(chosen[0]) : null
-                    const showVariants = !!first && variantCount(cat, first.level) > 1
-                    return (
-                      <div
-                        key={cat.id}
-                        className={`rating-cell${cat.include ? '' : ' excluded'}`}
-                        onKeyDown={(e) => onRatingKeyDown(e, cat)}
-                      >
-                        <span className="cat-name">
-                          {cat.include ? '' : '✎ '}
-                          {cat.name}
-                        </span>
-
-                        {cat.multi ? (
-                          <div className="level-toggles" role="group" aria-label={cat.name}>
-                            {LEVELS.map((lvl) => {
-                              const on = !!pickForLevel(picks, lvl)
-                              return (
-                                <button
-                                  key={lvl}
-                                  type="button"
-                                  className={`lvl-toggle${on ? ' on' : ''}`}
-                                  aria-pressed={on}
-                                  title={poolFor(cat, lvl)[0]}
-                                  onClick={() => writePicks(cat.id, setLevel(cat, picks, lvl))}
-                                >
-                                  {cat.levelLabels?.[lvl] ?? lvl}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        ) : (
-                          <select
-                            aria-label={cat.name}
-                            value={first ? first.level : ''}
-                            onChange={(e) =>
-                              writePicks(cat.id, setLevel(cat, picks, isLevel(e.target.value) ? e.target.value : null))
-                            }
-                          >
-                            <option value="">—</option>
-                            {LEVELS.map((lvl) => (
-                              <option key={lvl} value={lvl}>
-                                {levelLabel(cat, lvl)}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-
-                        {showVariants && first && (
-                          <button
-                            type="button"
-                            className="btn small variant-btn"
-                            title={pickText(cat, chosen[0])}
-                            onClick={() => writePicks(cat.id, cycleVariant(cat, picks, first.level))}
-                          >
-                            wording {first.variant + 1}/{variantCount(cat, first.level)}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-
-            <h3>
-              Order <span className="muted">(this student only)</span>
-            </h3>
-            {ordered.length < 2 ? (
-              <p className="hint">
-                Rate two or more categories and you can reorder their sentences here, just for this
-                student. The Comment Bank&apos;s top-to-bottom order is the class default.
-              </p>
-            ) : (
-              <>
-                <p className="hint">
-                  Move a sentence with the arrows, or <kbd>{MOD_LABEL}</kbd> + <kbd>↑</kbd>/
-                  <kbd>↓</kbd> while one is focused. The personal note always goes last.
-                </p>
-                <ol className="order-list">
-                  {ordered.map((cat, i) => (
-                    <li
-                      key={cat.id}
-                      className="order-row"
-                      onKeyDown={(e) => {
-                        if (!mod(e)) return
-                        if (e.key === 'ArrowUp') {
-                          e.preventDefault()
-                          moveOrderItem(i, -1)
-                        } else if (e.key === 'ArrowDown') {
-                          e.preventDefault()
-                          moveOrderItem(i, 1)
-                        }
-                      }}
-                    >
-                      <span className="order-index">{i + 1}</span>
-                      <span className="order-text">
-                        <b>{cat.name}</b>{' '}
-                        <span className="muted">
-                          {substitutePlaceholders(categoryText(cat, picksOf(cat)), student)}
-                        </span>
-                      </span>
-                      <span className="order-move">
-                        <button
-                          className="btn small"
-                          disabled={i === 0}
-                          aria-label={`Move ${cat.name} earlier`}
-                          onClick={() => moveOrderItem(i, -1)}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          className="btn small"
-                          disabled={i === ordered.length - 1}
-                          aria-label={`Move ${cat.name} later`}
-                          onClick={() => moveOrderItem(i, 1)}
-                        >
-                          ↓
-                        </button>
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-                {student.order.length > 0 && (
-                  <div className="btn-row">
-                    <button className="btn small subtle" onClick={resetOrder}>
-                      Reset to bank order
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-
-            <h3>
-              Personal note <span className="muted">(optional, appended verbatim)</span>
-            </h3>
-            <textarea
-              rows={3}
-              value={student.note}
-              placeholder="Anything specific to this student. Placeholders like [Student] and [he/she/they] work here too."
-              onChange={(e) => patchStudent(student.id, (s) => ({ ...s, note: e.target.value }))}
-            />
-
-            <h3>
-              Generated comment <span className="muted">{comment.length} characters</span>
-            </h3>
-            <div className="preview">{comment}</div>
-            <div className="btn-row">
-              <button
-                className="btn primary"
-                onClick={() => {
-                  void copyText(comment)
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 1500)
-                }}
+          <>
+            <div className="editor__head">
+              <Button
+                className="back-to-roster"
+                variant="ghost"
+                size="sm"
+                icon="chevronLeft"
+                onClick={() => setPane('roster')}
               >
-                {copied ? 'Copied ✓' : 'Copy comment'}
-              </button>
-              <button className="btn danger" onClick={deleteStudent}>
-                Delete student
-              </button>
+                All students
+              </Button>
+              <h2 className="truncate">{student.name || 'Unnamed student'}</h2>
+              <Toolbar>
+                <Button variant="danger" size="sm" icon="trash" onClick={deleteStudent}>
+                  Delete
+                </Button>
+              </Toolbar>
             </div>
-          </div>
+
+            <div className="editor__cols">
+              <div className="stack">
+                <Card>
+                  <FieldRow>
+                    <Field label="Student name" grow>
+                      <input
+                        ref={nameRef}
+                        type="text"
+                        value={student.name}
+                        placeholder="e.g. Jordan"
+                        autoComplete="off"
+                        onChange={(e) =>
+                          patchStudent(student.id, (s) => ({ ...s, name: e.target.value }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Pronouns">
+                      <select
+                        value={student.pronouns.preset}
+                        onChange={(e) => setPreset(e.target.value)}
+                      >
+                        <option value="she">she / her / her</option>
+                        <option value="he">he / him / his</option>
+                        <option value="they">they / them / their</option>
+                        <option value="custom">custom…</option>
+                      </select>
+                    </Field>
+                  </FieldRow>
+
+                  {student.pronouns.preset === 'custom' && (
+                    <FieldRow>
+                      <Field label="subject (she)" grow>
+                        <input
+                          type="text"
+                          value={student.pronouns.subject}
+                          onChange={(e) => setPronounPart('subject', e.target.value)}
+                        />
+                      </Field>
+                      <Field label="object (her)" grow>
+                        <input
+                          type="text"
+                          value={student.pronouns.object}
+                          onChange={(e) => setPronounPart('object', e.target.value)}
+                        />
+                      </Field>
+                      <Field label="possessive (her)" grow>
+                        <input
+                          type="text"
+                          value={student.pronouns.possessive}
+                          onChange={(e) => setPronounPart('possessive', e.target.value)}
+                        />
+                      </Field>
+                    </FieldRow>
+                  )}
+                </Card>
+
+                <Card>
+                  <div className="section__head">
+                    <h3>Ratings</h3>
+                    <span className="hint" style={{ fontSize: 'var(--text-xs)' }}>
+                      <kbd>1</kbd>–<kbd>4</kbd> set · <kbd>0</kbd> clear · <kbd>a</kbd> next wording
+                    </span>
+                  </div>
+
+                  {!klass.categories.length ? (
+                    <EmptyState icon="bank" title="This class has no categories yet">
+                      Add a few on the Comment bank tab, or import a bank someone shared with you.
+                    </EmptyState>
+                  ) : (
+                    grouped(klass.categories).map(({ group, cats }) => (
+                      <div key={group || 'ungrouped'} className="rating-group">
+                        {group && (
+                          <div className="rating-group__head">
+                            <span className="eyebrow">{group}</span>
+                          </div>
+                        )}
+                        <div className="rating-grid">
+                          {cats.map((cat) => {
+                            const picks = picksOf(cat)
+                            const chosen = sortPicks(picks)
+                            const first = chosen.length ? parsePick(chosen[0]) : null
+                            const showVariants = !!first && variantCount(cat, first.level) > 1
+                            const say = substitutePlaceholders(
+                              categoryText(cat, picks),
+                              student,
+                            )
+                            return (
+                              <div
+                                key={cat.id}
+                                className="rating-cell"
+                                data-rated={picks.length ? 'true' : undefined}
+                                data-excluded={cat.include ? undefined : 'true'}
+                                onKeyDown={(e) => onRatingKeyDown(e, cat)}
+                              >
+                                <div className="rating-cell__head">
+                                  {!cat.include && (
+                                    <Badge tone="outline" title="Switched off in the Comment bank">
+                                      off
+                                    </Badge>
+                                  )}
+                                  <span className="rating-cell__name" title={cat.name}>
+                                    {cat.name}
+                                  </span>
+                                  {cat.multi && (
+                                    <Badge tone="neutral" title="More than one level can be chosen here">
+                                      multi
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <div className="level-toggles" role="group" aria-label={cat.name}>
+                                  {LEVELS.map((lvl) => {
+                                    const on = !!pickForLevel(picks, lvl)
+                                    return (
+                                      <button
+                                        key={lvl}
+                                        type="button"
+                                        className="lvl-toggle"
+                                        data-level={lvl}
+                                        aria-pressed={on}
+                                        title={poolFor(cat, lvl)[0] || levelLabel(cat, lvl)}
+                                        onClick={() => toggleLevel(cat, lvl)}
+                                      >
+                                        {cat.levelLabels?.[lvl] ?? lvl}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+
+                                {say && <p className="rating-cell__say">{say}</p>}
+
+                                {(showVariants || picks.length > 0) && (
+                                  <div className="rating-cell__foot">
+                                    {showVariants && first && (
+                                      <Button
+                                        size="xs"
+                                        variant="ghost"
+                                        icon="shuffle"
+                                        title={pickText(cat, chosen[0])}
+                                        onClick={() =>
+                                          writePicks(cat.id, cycleVariant(cat, picks, first.level))
+                                        }
+                                      >
+                                        wording {first.variant + 1}/{variantCount(cat, first.level)}
+                                      </Button>
+                                    )}
+                                    {picks.length > 0 && (
+                                      <Button
+                                        size="xs"
+                                        variant="ghost"
+                                        icon="close"
+                                        title={`Clear ${cat.name}`}
+                                        aria-label={`Clear ${cat.name}`}
+                                        onClick={() => writePicks(cat.id, [])}
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </Card>
+
+                <Card>
+                  <div className="section__head">
+                    <h3>
+                      Sentence order <span className="muted">this student only</span>
+                    </h3>
+                    {student.order.length > 0 && (
+                      <Button size="xs" variant="ghost" onClick={resetOrder}>
+                        Reset to bank order
+                      </Button>
+                    )}
+                  </div>
+                  {ordered.length < 2 ? (
+                    <p className="hint">
+                      Rate two or more categories and you can reorder their sentences here, just for
+                      this student. The Comment bank&apos;s top-to-bottom order is the class default.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="hint" style={{ marginBottom: 'var(--space-3)' }}>
+                        Move a sentence with the arrows, or <kbd>{MOD_LABEL}</kbd> + <kbd>↑</kbd> /{' '}
+                        <kbd>↓</kbd> while one is focused. The personal note always goes last.
+                      </p>
+                      <ol className="order-list">
+                        {ordered.map((cat, i) => (
+                          <li
+                            key={cat.id}
+                            className="order-row"
+                            onKeyDown={(e) => {
+                              if (!mod(e)) return
+                              if (e.key === 'ArrowUp') {
+                                e.preventDefault()
+                                moveOrderItem(i, -1)
+                              } else if (e.key === 'ArrowDown') {
+                                e.preventDefault()
+                                moveOrderItem(i, 1)
+                              }
+                            }}
+                          >
+                            <span className="order-index">{i + 1}</span>
+                            <span className="order-text">
+                              <b>{cat.name}</b>
+                              <span>
+                                {substitutePlaceholders(categoryText(cat, picksOf(cat)), student)}
+                              </span>
+                            </span>
+                            <span className="order-move">
+                              <Button
+                                size="xs"
+                                icon="arrowUp"
+                                disabled={i === 0}
+                                aria-label={`Move ${cat.name} earlier`}
+                                onClick={() => moveOrderItem(i, -1)}
+                              />
+                              <Button
+                                size="xs"
+                                icon="arrowDown"
+                                disabled={i === ordered.length - 1}
+                                aria-label={`Move ${cat.name} later`}
+                                onClick={() => moveOrderItem(i, 1)}
+                              />
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    </>
+                  )}
+                </Card>
+
+                <Card>
+                  <div className="section__head">
+                    <h3>
+                      Personal note <span className="muted">appended verbatim</span>
+                    </h3>
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={student.note}
+                    placeholder="Anything specific to this student. Placeholders like [Student] and [he/she/they] work here too."
+                    onChange={(e) =>
+                      patchStudent(student.id, (s) => ({ ...s, note: e.target.value }))
+                    }
+                  />
+                </Card>
+              </div>
+
+              <div className="editor__aside">{preview}</div>
+            </div>
+          </>
         )}
       </div>
     </div>

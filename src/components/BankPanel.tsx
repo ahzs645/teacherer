@@ -5,6 +5,18 @@ import { seedCategories } from '../seedData'
 import { exportBankJson, exportBankXlsx, parseBankFile } from '../lib/exportImport'
 import { parsePick, formatPick, poolFor } from '../lib/ratings'
 import { uid } from '../lib/util'
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Disclosure,
+  EmptyState,
+  Field,
+  LevelChip,
+  Toolbar,
+  ToolbarSpacer,
+} from './ui'
 
 interface Props {
   klass: Klass
@@ -41,7 +53,10 @@ export default function BankPanel({ klass, updateClass }: Props) {
     })
 
   const patchCategory = (id: string, patch: (c: Category) => Category) => {
-    updateClass((prev) => ({ ...prev, categories: prev.categories.map((c) => (c.id === id ? patch(c) : c)) }))
+    updateClass((prev) => ({
+      ...prev,
+      categories: prev.categories.map((c) => (c.id === id ? patch(c) : c)),
+    }))
   }
 
   const moveCategory = (idx: number, delta: number) => {
@@ -73,7 +88,12 @@ export default function BankPanel({ klass, updateClass }: Props) {
       id: uid(),
       name: `${cat.name} (copy)`,
       levelLabels: cat.levelLabels ? { ...cat.levelLabels } : null,
-      levels: { '1': [...cat.levels['1']], '2': [...cat.levels['2']], '3': [...cat.levels['3']], '4': [...cat.levels['4']] },
+      levels: {
+        '1': [...cat.levels['1']],
+        '2': [...cat.levels['2']],
+        '3': [...cat.levels['3']],
+        '4': [...cat.levels['4']],
+      },
     }
     updateClass((prev) => {
       const categories = [...prev.categories]
@@ -156,7 +176,12 @@ export default function BankPanel({ klass, updateClass }: Props) {
     try {
       const categories = await parseBankFile(file)
       const replace = importMode.current === 'replace'
-      if (replace && !confirm(`Replace all ${klass.categories.length} categories with the ${categories.length} in this file? Existing ratings will be cleared.`)) {
+      if (
+        replace &&
+        !confirm(
+          `Replace all ${klass.categories.length} categories with the ${categories.length} in this file? Existing ratings will be cleared.`,
+        )
+      ) {
         return
       }
       updateClass((prev) => ({
@@ -176,198 +201,272 @@ export default function BankPanel({ klass, updateClass }: Props) {
   }
 
   const allOpen = klass.categories.length > 0 && openIds.size === klass.categories.length
+  const included = klass.categories.filter((c) => c.include).length
 
   return (
-    <div>
-      <div className="bank-head">
-        <h2>Comment bank · {klass.name}</h2>
-        <p className="hint">
-          Every level holds a pool of interchangeable phrasings — the first is the default, the rest
-          are alternates you can pick per student. Checked categories are stitched together, top to
-          bottom. Placeholders: <code>[Student]</code>, <code>[He/She/They]</code>,{' '}
-          <code>[he/she/they]</code>, <code>[His/Her/Their]</code>, <code>[him/her/them]</code>.
-        </p>
-        <div className="btn-row">
-          <button className="btn primary" onClick={addCategory}>
-            + Add category
-          </button>
-          <button
-            className="btn"
-            onClick={() => setOpenIds(allOpen ? new Set() : new Set(klass.categories.map((c) => c.id)))}
+    <>
+      <div className="page-head">
+        <div className="page-head__text">
+          <h2>Comment bank</h2>
+          <p className="hint">
+            {klass.name} · {klass.categories.length} categor
+            {klass.categories.length === 1 ? 'y' : 'ies'}, {included} in the comment. Every level
+            holds a pool of interchangeable phrasings — the first is the default, the rest are
+            alternates you can pick per student. Categories are stitched together top to bottom.
+          </p>
+        </div>
+        <Toolbar>
+          <Button variant="primary" icon="plus" onClick={addCategory}>
+            Add category
+          </Button>
+          <Button
+            icon={allOpen ? 'chevronRight' : 'chevronDown'}
+            onClick={() =>
+              setOpenIds(allOpen ? new Set() : new Set(klass.categories.map((c) => c.id)))
+            }
           >
             {allOpen ? 'Collapse all' : 'Expand all'}
-          </button>
-          <details className="tool-group">
-            <summary>Share this bank…</summary>
-            <div className="btn-row">
-              <button className="btn" onClick={() => void exportBankXlsx(klass)}>
-                Export (.xlsx)
-              </button>
-              <button className="btn" onClick={() => exportBankJson(klass)}>
-                Export (.json)
-              </button>
-              <button className="btn" onClick={() => pickBankFile('add')}>
-                Import &amp; add…
-              </button>
-              <button className="btn" onClick={() => pickBankFile('replace')}>
-                Import &amp; replace…
-              </button>
-              <button className="btn subtle" onClick={resetBank} title="Restore the bank that shipped with the app">
-                Reset to template
-              </button>
-            </div>
-            <p className="hint">
-              A bank file carries the categories and every phrasing — hand it to a colleague, or move
-              it between your classes. <strong>Add</strong> appends to this bank; <strong>replace</strong>{' '}
-              swaps it out and clears this class's ratings.
-            </p>
-          </details>
-          <input
-            ref={bankInput}
-            type="file"
-            accept=".xlsx,.xls,.csv,.json"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (file) void importBank(file)
-            }}
-          />
-        </div>
+          </Button>
+        </Toolbar>
       </div>
 
-      <div className="bank-list">
-        {klass.categories.map((cat, idx) => (
-          <div key={cat.id} className={`bank-cat${isOpen(cat.id) ? '' : ' collapsed'}`}>
-            <div className="bank-cat-head">
-              <button
-                className="btn small chevron"
-                aria-expanded={isOpen(cat.id)}
-                title={isOpen(cat.id) ? 'Collapse' : 'Expand'}
-                onClick={() => toggleOpen(cat.id)}
-              >
-                {isOpen(cat.id) ? '▾' : '▸'}
-              </button>
-              <label className="include-toggle">
-                <input
-                  type="checkbox"
-                  aria-label={`Include ${cat.name} in the final comment`}
-                  checked={cat.include}
-                  onChange={(e) => patchCategory(cat.id, (c) => ({ ...c, include: e.target.checked }))}
+      <Disclosure summary="Placeholders you can use in any wording">
+        <p className="hint" style={{ margin: 0 }}>
+          <code>[Student]</code>, <code>[He/She/They]</code>, <code>[he/she/they]</code>,{' '}
+          <code>[His/Her/Their]</code>, <code>[him/her/them]</code> — each one is filled in from the
+          student&apos;s name and pronouns as the comment is generated.
+        </p>
+      </Disclosure>
+
+      <Disclosure summary="Share this bank — export, import, reset" className="section--no-print">
+        <Toolbar>
+          <Button icon="download" onClick={() => void exportBankXlsx(klass)}>
+            Export .xlsx
+          </Button>
+          <Button icon="download" onClick={() => exportBankJson(klass)}>
+            Export .json
+          </Button>
+          <Button icon="upload" onClick={() => pickBankFile('add')}>
+            Import &amp; add…
+          </Button>
+          <Button icon="upload" onClick={() => pickBankFile('replace')}>
+            Import &amp; replace…
+          </Button>
+          <ToolbarSpacer />
+          <Button
+            variant="dashed"
+            onClick={resetBank}
+            title="Restore the bank that shipped with the app"
+          >
+            Reset to template
+          </Button>
+        </Toolbar>
+        <p className="hint" style={{ margin: 0 }}>
+          A bank file carries the categories and every phrasing — hand it to a colleague, or move it
+          between your classes. <strong>Add</strong> appends to this bank; <strong>replace</strong>{' '}
+          swaps it out and clears this class&apos;s ratings.
+        </p>
+        <input
+          ref={bankInput}
+          type="file"
+          accept=".xlsx,.xls,.csv,.json"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (file) void importBank(file)
+          }}
+        />
+      </Disclosure>
+
+      <div className="bank-list" style={{ marginTop: 'var(--space-4)' }}>
+        {klass.categories.map((cat, idx) => {
+          const open = isOpen(cat.id)
+          return (
+            <div
+              key={cat.id}
+              className="bank-cat"
+              data-open={open ? 'true' : undefined}
+              data-included={cat.include ? undefined : 'false'}
+            >
+              <div className="bank-cat__head">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={open ? 'chevronDown' : 'chevronRight'}
+                  aria-expanded={open}
+                  title={open ? 'Collapse' : 'Expand'}
+                  aria-label={open ? `Collapse ${cat.name}` : `Expand ${cat.name}`}
+                  onClick={() => toggleOpen(cat.id)}
                 />
-                <span>in comment</span>
-              </label>
-              <input
-                type="text"
-                className="cat-name-input"
-                aria-label="Category name"
-                value={cat.name}
-                onChange={(e) => patchCategory(cat.id, (c) => ({ ...c, name: e.target.value }))}
-              />
-              <div className="cat-actions">
-                <button className="btn small" title="Move up" onClick={() => moveCategory(idx, -1)}>
-                  ↑
-                </button>
-                <button className="btn small" title="Move down" onClick={() => moveCategory(idx, 1)}>
-                  ↓
-                </button>
-                <button className="btn small" title="Duplicate" onClick={() => duplicateCategory(cat, idx)}>
-                  ⧉
-                </button>
-                <button className="btn small danger" title="Delete" onClick={() => deleteCategory(cat)}>
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            {isOpen(cat.id) && (
-              <div className="bank-cat-settings">
-                <label className="field grow">
-                  <span>Competency group</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. Communicating"
-                    value={cat.group}
-                    onChange={(e) => patchCategory(cat.id, (c) => ({ ...c, group: e.target.value }))}
+                <Checkbox
+                  checked={cat.include}
+                  onChange={(checked) => patchCategory(cat.id, (c) => ({ ...c, include: checked }))}
+                  aria-label={`Include ${cat.name} in the final comment`}
+                  title="Whether this category is stitched into the generated comment"
+                  label={<span className="bank-cat__include-text">in comment</span>}
+                />
+                <input
+                  type="text"
+                  className="bank-cat__name"
+                  aria-label="Category name"
+                  value={cat.name}
+                  onChange={(e) => patchCategory(cat.id, (c) => ({ ...c, name: e.target.value }))}
+                />
+                {cat.multi && <Badge tone="neutral">multi</Badge>}
+                <div className="bank-cat__actions">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon="arrowUp"
+                    title="Move up"
+                    aria-label={`Move ${cat.name} up`}
+                    disabled={idx === 0}
+                    onClick={() => moveCategory(idx, -1)}
                   />
-                </label>
-                <label className="include-toggle" title="Let a student carry more than one of these at once">
-                  <input
-                    type="checkbox"
-                    checked={cat.multi}
-                    onChange={(e) => patchCategory(cat.id, (c) => ({ ...c, multi: e.target.checked }))}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon="arrowDown"
+                    title="Move down"
+                    aria-label={`Move ${cat.name} down`}
+                    disabled={idx === klass.categories.length - 1}
+                    onClick={() => moveCategory(idx, 1)}
                   />
-                  <span>multi-pick (a student can carry more than one)</span>
-                </label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon="duplicate"
+                    title="Duplicate"
+                    aria-label={`Duplicate ${cat.name}`}
+                    onClick={() => duplicateCategory(cat, idx)}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon="trash"
+                    title="Delete"
+                    aria-label={`Delete ${cat.name}`}
+                    onClick={() => deleteCategory(cat)}
+                  />
+                </div>
               </div>
-            )}
 
-            {!isOpen(cat.id) && (
-              <p className="bank-summary">
-                {poolFor(cat, '1')[0]?.slice(0, 90) || 'No text yet'}
-                {(poolFor(cat, '1')[0]?.length ?? 0) > 90 ? '…' : ''}
-              </p>
-            )}
+              {!open && (
+                <p className="bank-cat__summary">
+                  {poolFor(cat, '1')[0]?.slice(0, 110) || 'No text yet'}
+                  {(poolFor(cat, '1')[0]?.length ?? 0) > 110 ? '…' : ''}
+                </p>
+              )}
 
-            <div className="bank-levels">
-              {LEVELS.map((lvl) => {
-                const pool = poolFor(cat, lvl)
-                return (
-                  <div key={lvl} className="bank-level">
-                    <div className="lvl-head">
-                      <strong>Level {lvl}</strong>
+              {open && (
+                <>
+                  <div className="bank-cat__settings">
+                    <Field label="Competency group" grow>
                       <input
                         type="text"
-                        placeholder="label (optional)"
-                        aria-label={`Level ${lvl} label`}
-                        value={cat.levelLabels?.[lvl] ?? ''}
+                        placeholder="e.g. Communicating"
+                        value={cat.group}
                         onChange={(e) =>
-                          patchCategory(cat.id, (c) => ({
-                            ...c,
-                            levelLabels: { ...(c.levelLabels ?? {}), [lvl]: e.target.value },
-                          }))
+                          patchCategory(cat.id, (c) => ({ ...c, group: e.target.value }))
                         }
                       />
-                    </div>
-                    {pool.map((text, i) => (
-                      <div key={i} className="phrasing">
-                        <textarea
-                          rows={4}
-                          aria-label={`Level ${lvl} phrasing ${i + 1}`}
-                          placeholder={i === 0 ? `Comment text for level ${lvl}…` : 'Alternate wording…'}
-                          value={text}
-                          onChange={(e) => editPhrasing(cat, lvl, i, e.target.value)}
-                        />
-                        <div className="phrasing-tools">
-                          <span className="phrasing-tag">{i === 0 ? 'default' : `alt ${i}`}</span>
-                          {i > 0 && (
-                            <button className="btn small" onClick={() => makeDefault(cat, lvl, i)}>
-                              Make default
-                            </button>
-                          )}
-                          {pool.length > 1 && (
-                            <button className="btn small danger" onClick={() => removePhrasing(cat, lvl, i)}>
-                              Remove
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    <button className="btn small subtle" onClick={() => addPhrasing(cat, lvl)}>
-                      + Add wording
-                    </button>
+                    </Field>
+                    <Checkbox
+                      checked={cat.multi}
+                      onChange={(checked) => patchCategory(cat.id, (c) => ({ ...c, multi: checked }))}
+                      title="Let a student carry more than one of these at once"
+                      label="multi-pick (a student can carry more than one)"
+                    />
                   </div>
-                )
-              })}
+
+                  <div className="bank-levels">
+                    {LEVELS.map((lvl) => {
+                      const pool = poolFor(cat, lvl)
+                      return (
+                        <div key={lvl} className="bank-level">
+                          <div className="bank-level__head">
+                            <LevelChip level={lvl} />
+                            <input
+                              type="text"
+                              placeholder="label (optional)"
+                              aria-label={`Level ${lvl} label`}
+                              value={cat.levelLabels?.[lvl] ?? ''}
+                              onChange={(e) =>
+                                patchCategory(cat.id, (c) => ({
+                                  ...c,
+                                  levelLabels: { ...(c.levelLabels ?? {}), [lvl]: e.target.value },
+                                }))
+                              }
+                            />
+                          </div>
+                          {pool.map((text, i) => (
+                            <div key={i} className="phrasing">
+                              <textarea
+                                rows={4}
+                                aria-label={`Level ${lvl} phrasing ${i + 1}`}
+                                placeholder={
+                                  i === 0 ? `Comment text for level ${lvl}…` : 'Alternate wording…'
+                                }
+                                value={text}
+                                onChange={(e) => editPhrasing(cat, lvl, i, e.target.value)}
+                              />
+                              <div className="phrasing__tools">
+                                <Badge tone={i === 0 ? 'brand' : 'outline'}>
+                                  {i === 0 ? 'default' : `alt ${i}`}
+                                </Badge>
+                                {i > 0 && (
+                                  <Button size="xs" onClick={() => makeDefault(cat, lvl, i)}>
+                                    Make default
+                                  </Button>
+                                )}
+                                {pool.length > 1 && (
+                                  <Button
+                                    size="xs"
+                                    variant="danger"
+                                    icon="trash"
+                                    aria-label={`Remove level ${lvl} wording ${i + 1}`}
+                                    onClick={() => removePhrasing(cat, lvl, i)}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          <Button
+                            size="sm"
+                            variant="dashed"
+                            icon="plus"
+                            block
+                            onClick={() => addPhrasing(cat, lvl)}
+                          >
+                            Add wording
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
+
         {!klass.categories.length && (
-          <p className="empty-note">
-            This bank is empty. Add a category, import one, or reset to the built-in template.
-          </p>
+          <Card padding="none">
+            <EmptyState
+              icon="bank"
+              title="This bank is empty"
+              actions={
+                <Button variant="primary" icon="plus" onClick={addCategory}>
+                  Add a category
+                </Button>
+              }
+            >
+              Add a category, import one a colleague shared, or reset to the built-in template.
+            </EmptyState>
+          </Card>
         )}
       </div>
-    </div>
+    </>
   )
 }

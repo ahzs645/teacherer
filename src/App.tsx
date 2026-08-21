@@ -9,28 +9,49 @@ import { stepStudent, visibleStudents } from './lib/roster'
 import { makeStudent } from './lib/pronouns'
 import { copyText } from './lib/util'
 import { emptyClass } from './seedData'
+import { useTheme } from './hooks/useTheme'
+import ThemeToggle from './components/ThemeToggle'
 import StudentsPanel from './components/StudentsPanel'
 import type { Pane } from './components/StudentsPanel'
 import GridPanel from './components/GridPanel'
 import BankPanel from './components/BankPanel'
 import ReportsPanel from './components/ReportsPanel'
+import DataPanel from './components/DataPanel'
 import HelpDialog from './components/HelpDialog'
 import type { HelpTab } from './components/HelpDialog'
+import { Badge, Button, Icon } from './components/ui'
+import type { IconName } from './components/ui'
 
 const iconUrl = `${import.meta.env.BASE_URL}icons/icon-192.png`
 
-type Tab = 'students' | 'grid' | 'bank' | 'reports'
+type Tab = 'students' | 'grid' | 'bank' | 'reports' | 'data'
 type SaveStatus = 'saved' | 'saving' | 'error'
 
-/** `chord` is the second key of the "g then …" sequence. */
-const TABS: { id: Tab; label: string; short: string; chord: string }[] = [
-  { id: 'students', label: 'Students', short: 'Students', chord: 's' },
-  { id: 'grid', label: 'Grid', short: 'Grid', chord: 'g' },
-  { id: 'bank', label: 'Comment Bank', short: 'Bank', chord: 'b' },
-  { id: 'reports', label: 'Reports & Export', short: 'Reports', chord: 'r' },
+interface TabDef {
+  id: Tab
+  label: string
+  /** what the bottom bar shows, where there is room for a word at most */
+  short: string
+  icon: IconName
+  /** the second key of the "g then …" sequence */
+  chord: string
+}
+
+const TABS: TabDef[] = [
+  { id: 'students', label: 'Students', short: 'Students', icon: 'students', chord: 's' },
+  { id: 'grid', label: 'Mark grid', short: 'Grid', icon: 'grid', chord: 'g' },
+  { id: 'bank', label: 'Comment bank', short: 'Bank', icon: 'bank', chord: 'b' },
+  { id: 'reports', label: 'Reports', short: 'Reports', icon: 'reports', chord: 'r' },
+  { id: 'data', label: 'Classes & data', short: 'Data', icon: 'data', chord: 'd' },
 ]
 
 const NEW_CLASS = '__new__'
+
+const SAVE_LABEL: Record<SaveStatus, string> = {
+  saved: 'Saved',
+  saving: 'Saving…',
+  error: 'Not saved',
+}
 
 export default function App() {
   const [state, setState] = useState<AppState>(loadState)
@@ -46,6 +67,8 @@ export default function App() {
   const firstRender = useRef(true)
   const searchRef = useRef<HTMLInputElement>(null)
   const chordRef = useRef<number>(0)
+
+  const theme = useTheme()
 
   const {
     offlineReady: [offlineReady],
@@ -111,7 +134,11 @@ export default function App() {
       const name = prompt('Name for the new class (e.g. “P3 FM10”)')?.trim()
       if (!name) return
       const created = emptyClass(name)
-      setState((prev) => ({ ...prev, classes: [...prev.classes, created], activeClassId: created.id }))
+      setState((prev) => ({
+        ...prev,
+        classes: [...prev.classes, created],
+        activeClassId: created.id,
+      }))
     } else {
       setState((prev) => ({ ...prev, activeClassId: id }))
     }
@@ -120,15 +147,23 @@ export default function App() {
     setPane('roster')
   }
 
+  const openHelp = (which: HelpTab) => {
+    setHelpTab(which)
+    setHelpOpen(true)
+  }
+
   // ---- global keyboard shortcuts -----------------------------------------
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return
       const typing = isTypingTarget(e.target)
 
-      if (mod(e) && !e.altKey && e.key >= '1' && e.key <= '4' && !e.shiftKey) {
-        e.preventDefault()
-        setTab(TABS[Number(e.key) - 1].id)
+      if (mod(e) && !e.altKey && !e.shiftKey && e.key >= '1' && e.key <= '9') {
+        const hit = TABS[Number(e.key) - 1]
+        if (hit) {
+          e.preventDefault()
+          setTab(hit.id)
+        }
         return
       }
       if (mod(e) && e.shiftKey && e.key.toLowerCase() === 'c') {
@@ -170,8 +205,7 @@ export default function App() {
         case '?':
           e.preventDefault()
           // pressing "?" is a keyboard question, so land on that tab
-          setHelpTab('keys')
-          setHelpOpen(true)
+          openHelp('keys')
           break
         case 'Escape':
           setHelpOpen(false)
@@ -186,127 +220,171 @@ export default function App() {
           e.preventDefault()
           addStudent()
           break
+        case 't':
+          e.preventDefault()
+          theme.toggle()
+          break
         default:
           break
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [addStudent, effectiveSelectedId, klass.categories, klass.students, visible])
+  }, [addStudent, effectiveSelectedId, klass.categories, klass.students, theme, visible])
 
-  const statusText =
-    saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving…' : '⚠ Not saved'
+  const classPicker = (
+    <div className="topbar__class">
+      <label className="sr-only" htmlFor="class-picker">
+        Current class
+      </label>
+      <select
+        id="class-picker"
+        value={state.activeClassId}
+        onChange={(e) => switchClass(e.target.value)}
+        title="Switch class"
+      >
+        {state.classes.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+        <option value={NEW_CLASS}>＋ New class…</option>
+      </select>
+    </div>
+  )
 
   return (
-    <>
-      <header className="app-header">
+    <div className="app">
+      <aside className="sidebar">
         <div className="brand">
-          <img src={iconUrl} alt="" width={26} height={26} />
-          <h1>Teacherer</h1>
-          <span className="tagline">report comment tool · local-first</span>
-        </div>
-
-        <label className="class-picker">
-          <span className="sr-only">Current class</span>
-          <select value={state.activeClassId} onChange={(e) => switchClass(e.target.value)}>
-            {state.classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            <option value={NEW_CLASS}>＋ New class…</option>
-          </select>
-        </label>
-
-        <div className="header-status">
-          <span id="save-status" title="All changes are saved to this device automatically">
-            {statusText}
+          <img className="brand__mark" src={iconUrl} alt="" width={32} height={32} />
+          <span className="brand__text">
+            <span className="brand__name">Teacherer</span>
+            <span className="brand__tagline">Report comments</span>
           </span>
-          {offline && <span id="offline-badge">Offline ready</span>}
-          <button
-            className="btn small help-btn"
-            onClick={() => {
-              setHelpTab('guide')
-              setHelpOpen(true)
-            }}
-            title="Help — what everything does, and the shortcuts (?)"
-            aria-label="Help"
-          >
-            ?
-          </button>
         </div>
 
-        <nav className="tabs" role="tablist" aria-label="Sections">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              id={`tab-${t.id}`}
-              className={`tab${tab === t.id ? ' active' : ''}`}
-              role="tab"
-              aria-selected={tab === t.id}
-              aria-controls={`panel-${t.id}`}
-              onClick={() => setTab(t.id)}
-            >
-              <span className="tab-long">{t.label}</span>
-              <span className="tab-short">{t.short}</span>
-            </button>
-          ))}
+        <nav aria-label="Sections">
+          <ul className="sidebar__nav">
+            {TABS.map((t) => (
+              <li key={t.id}>
+                <button
+                  className="nav-item"
+                  aria-current={tab === t.id ? 'page' : undefined}
+                  onClick={() => setTab(t.id)}
+                >
+                  <Icon name={t.icon} className="nav-item__icon" size="1.15rem" />
+                  <span className="nav-item__label">{t.label}</span>
+                  <span className="nav-item__short">{t.short}</span>
+                  <span className="nav-item__chord" aria-hidden="true">
+                    g {t.chord}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </nav>
-      </header>
 
-      <main>
-        <section
-          className={`panel active panel-${tab}`}
-          id={`panel-${tab}`}
-          role="tabpanel"
-          aria-labelledby={`tab-${tab}`}
-        >
-          {tab === 'students' && (
-            <StudentsPanel
-              klass={klass}
-              updateClass={updateClass}
-              students={visible}
-              selectedId={effectiveSelectedId}
-              onSelect={setSelectedId}
-              query={query}
-              setQuery={setQuery}
-              sortAZ={sortAZ}
-              setSortAZ={setSortAZ}
-              searchRef={searchRef}
-              pane={pane}
-              setPane={setPane}
-              onAddStudent={addStudent}
-              focusNameToken={focusNameToken}
-            />
-          )}
-          {tab === 'grid' && (
-            <GridPanel
-              klass={klass}
-              updateClass={updateClass}
-              students={visible}
-              onOpenStudent={openStudent}
-            />
-          )}
-          {tab === 'bank' && <BankPanel klass={klass} updateClass={updateClass} />}
-          {tab === 'reports' && (
-            <ReportsPanel state={state} update={update} klass={klass} updateClass={updateClass} />
-          )}
-        </section>
-      </main>
+        <div className="sidebar__foot">
+          <div className="sidebar__meta">
+            <span className="sidebar__local" title="Nothing you type here leaves this device">
+              <Icon name="lock" />
+              <span className="sidebar__local-text">On this device</span>
+            </span>
+            <span>v{__APP_VERSION__}</span>
+          </div>
+        </div>
+      </aside>
 
-      <footer className="app-footer">
-        <span>All data stays on your device.</span>
-        <button
-          className="link-btn"
-          onClick={() => {
-            setHelpTab('guide')
-            setHelpOpen(true)
-          }}
-        >
-          Help &amp; shortcuts
-        </button>
-        <span>v{__APP_VERSION__}</span>
-      </footer>
+      <div className="app__main">
+        <header className="topbar">
+          <span className="topbar__brand">
+            <img src={iconUrl} alt="Teacherer" width={26} height={26} />
+          </span>
+          {classPicker}
+          <div className="topbar__actions">
+            <span className="save-chip" data-status={saveStatus} title="Changes save to this device automatically">
+              <span className="save-chip__dot" aria-hidden="true" />
+              <span>{SAVE_LABEL[saveStatus]}</span>
+            </span>
+            {offline && (
+              <Badge tone="success" className="topbar__offline" title="This app works with no connection">
+                Offline ready
+              </Badge>
+            )}
+            <ThemeToggle theme={theme} />
+            <Button
+              variant="ghost"
+              icon="help"
+              onClick={() => openHelp('guide')}
+              title="Help — what everything does, and the shortcuts (?)"
+              aria-label="Help"
+            />
+          </div>
+        </header>
+
+        <main className={`content${tab === 'grid' ? ' content--wide' : ''}`}>
+          <div className="content__inner" key={tab}>
+            {tab === 'students' && (
+              <StudentsPanel
+                klass={klass}
+                updateClass={updateClass}
+                students={visible}
+                selectedId={effectiveSelectedId}
+                onSelect={setSelectedId}
+                query={query}
+                setQuery={setQuery}
+                sortAZ={sortAZ}
+                setSortAZ={setSortAZ}
+                searchRef={searchRef}
+                pane={pane}
+                setPane={setPane}
+                onAddStudent={addStudent}
+                focusNameToken={focusNameToken}
+              />
+            )}
+            {tab === 'grid' && (
+              <GridPanel
+                klass={klass}
+                updateClass={updateClass}
+                students={visible}
+                onOpenStudent={openStudent}
+              />
+            )}
+            {tab === 'bank' && <BankPanel klass={klass} updateClass={updateClass} />}
+            {tab === 'reports' && (
+              <ReportsPanel state={state} klass={klass} onOpenStudent={openStudent} />
+            )}
+            {tab === 'data' && (
+              <DataPanel state={state} update={update} klass={klass} updateClass={updateClass} />
+            )}
+          </div>
+        </main>
+
+        <footer className="app-footer">
+          <span>All data stays on your device — there is no server and no account.</span>
+          <button className="link-btn" onClick={() => openHelp('guide')}>
+            Help &amp; shortcuts
+          </button>
+        </footer>
+      </div>
+
+      <nav className="tabbar" aria-label="Sections">
+        <ul className="tabbar__list">
+          {TABS.map((t) => (
+            <li key={t.id}>
+              <button
+                className="tabbar__item"
+                aria-current={tab === t.id ? 'page' : undefined}
+                onClick={() => setTab(t.id)}
+              >
+                <Icon name={t.icon} size="1.25rem" />
+                <span>{t.short}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       <HelpDialog
         open={helpOpen}
@@ -314,6 +392,6 @@ export default function App() {
         setTab={setHelpTab}
         onClose={() => setHelpOpen(false)}
       />
-    </>
+    </div>
   )
 }
